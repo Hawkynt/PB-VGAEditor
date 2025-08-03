@@ -1,6 +1,6 @@
 ' .VGA File Format Module
 
-$INCLUDE "SPRITE_OPS.SUB"
+$INCLUDE "SPRITE.SUB"
 
 '******************************************************************************
 '* SUB: ReadVGAFile

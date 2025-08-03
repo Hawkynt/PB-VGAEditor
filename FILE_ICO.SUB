@@ -1,6 +1,6 @@
 ' .ICO File Format Module
 
-$INCLUDE "SPRITE_OPS.SUB"
+$INCLUDE "SPRITE.SUB"
 
 TYPE ICONDIR
     idReserved  AS INTEGER

@@ -1,6 +1,6 @@
 ' .BMP File Format Module
 
-$INCLUDE "SPRITE_OPS.SUB"
+$INCLUDE "SPRITE.SUB"
 
 TYPE BMPHeader
     bfType      AS STRING * 2
