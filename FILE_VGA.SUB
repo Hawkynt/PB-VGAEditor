@@ -1,0 +1,44 @@
+' .VGA File Format Module
+
+$INCLUDE "SPRITE_OPS.SUB"
+
+'******************************************************************************
+'* SUB: ReadVGAFile
+'* Purpose: Reads a raw .VGA file into the canvas.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path to the .VGA file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to fill.
+'******************************************************************************
+SUB ReadVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+    FOR y = 0 TO spr.height
+        FOR x = 0 TO spr.width
+            canvas(x, y) = ASC(INPUT$(1, #fileNum))
+        NEXT x
+    NEXT y
+    CLOSE #fileNum
+    UpdateSpriteBoundingBox spr, canvas()
+END SUB
+
+'******************************************************************************
+'* SUB: WriteVGAFile
+'* Purpose: Writes the canvas to a raw .VGA file.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path for the new file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to save.
+'******************************************************************************
+SUB WriteVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+    FOR y = 0 TO spr.height
+        FOR x = 0 TO spr.width
+            PUT #fileNum, , CHR$(canvas(x, y))
+        NEXT x
+    NEXT y
+    CLOSE #fileNum
+END SUB

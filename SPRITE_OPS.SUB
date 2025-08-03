@@ -1,0 +1,137 @@
+' Core Sprite Operations Module
+
+TYPE Sprite
+    width AS INTEGER
+    height AS INTEGER
+    boundingBoxX1 AS INTEGER
+    boundingBoxY1 AS INTEGER
+    boundingBoxX2 AS INTEGER
+    boundingBoxY2 AS INTEGER
+END TYPE
+
+'******************************************************************************
+'* SUB: InitializeSprite
+'* Purpose: Sets the initial dimensions for the sprite and allocates memory.
+'* Parameters:
+'*   spr (BYREF Sprite): The sprite metadata object to initialize.
+'*   canvas() (BYREF INTEGER): The integer array to be dimensioned.
+'******************************************************************************
+SUB InitializeSprite (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    spr.width = (GRID_X_MAX / GRID_X_STEP)
+    spr.height = (GRID_Y_MAX - GRID_START_Y) / GRID_Y_STEP
+    REDIM canvas(0 TO spr.width, 0 TO spr.height) AS INTEGER
+    ClearCanvas spr, canvas()
+END SUB
+
+'******************************************************************************
+'* SUB: ClearCanvas
+'* Purpose: Fills the sprite data array with 0 (transparent).
+'* Parameters:
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to clear.
+'******************************************************************************
+SUB ClearCanvas (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER
+    FOR y = 0 TO spr.height
+        FOR x = 0 TO spr.width
+            canvas(x, y) = 0
+        NEXT x
+    NEXT y
+    UpdateSpriteBoundingBox spr, canvas()
+END SUB
+
+'******************************************************************************
+'* SUB: RenderCanvas
+'* Purpose: Draws the entire contents of the canvas array to the screen.
+'* Parameters:
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to render.
+'******************************************************************************
+SUB RenderCanvas (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
+    CLS
+    DrawGrid
+    FOR y = 0 TO spr.height
+        FOR x = 0 TO spr.width
+            IF canvas(x, y) <> 0 THEN
+                CanvasToScreen x, y, screenX, screenY
+                LINE (screenX, screenY)-STEP(GRID_X_STEP, GRID_Y_STEP), canvas(x, y), BF
+                PSET (x + PREVIEW_X + 3, y + PREVIEW_Y), canvas(x, y)
+            END IF
+        NEXT x
+    NEXT y
+END SUB
+
+'******************************************************************************
+'* SUB: CanvasToScreen
+'* Purpose: Converts canvas array coordinates to screen pixel coordinates.
+'* Parameters:
+'*   canvasX (BYVAL INTEGER): The X index of the canvas array.
+'*   canvasY (BYVAL INTEGER): The Y index of the canvas array.
+'*   screenX (BYREF INTEGER): The resulting X pixel coordinate on screen.
+'*   screenY (BYREF INTEGER): The resulting Y pixel coordinate on screen.
+'******************************************************************************
+SUB CanvasToScreen (BYVAL canvasX AS INTEGER, BYVAL canvasY AS INTEGER, BYREF screenX AS INTEGER, BYREF screenY AS INTEGER)
+    screenX = canvasX * GRID_X_STEP
+    screenY = (canvasY * GRID_Y_STEP) + GRID_START_Y
+END SUB
+
+'******************************************************************************
+'* SUB: DrawGrid
+'* Purpose: Draws the editor grid on the screen.
+'* Parameters: None
+'******************************************************************************
+SUB DrawGrid ()
+    DIM x AS INTEGER, y AS INTEGER
+    FOR x = 0 TO GRID_X_MAX STEP GRID_X_STEP
+        LINE (x, GRID_START_Y)-(x, GRID_Y_MAX), GRID_COLOR
+    NEXT x
+    FOR y = GRID_START_Y TO GRID_Y_MAX STEP GRID_Y_STEP
+        LINE (0, y)-(GRID_X_MAX, y), GRID_COLOR
+    NEXT y
+END SUB
+
+'******************************************************************************
+'* SUB: DrawUI
+'* Purpose: Draws the user interface elements like text and color preview.
+'* Parameters:
+'*   drawingColor (BYVAL INTEGER): The currently selected drawing color.
+'*   currentFileName (BYVAL STRING): The name of the current file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'******************************************************************************
+SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, BYREF spr AS Sprite)
+    LOCATE 1, 70: PRINT currentFileName$
+    LOCATE 2, 1: COLOR 5
+    PRINT "ESC=Exit  N=New  L=Load  S=Save  INS=Line-Mode"
+    LOCATE 3, 6: COLOR drawingColor: PRINT "Color"
+    LINE (15, 33)-STEP(GRID_X_STEP, GRID_Y_STEP), drawingColor, BF
+    LOCATE 3, 14: COLOR 1: PRINT "C=Color"
+    LOCATE 3, 28: COLOR 2: PRINT "L-Mouse=Draw"
+    LOCATE 3, 45: COLOR 4: PRINT "R-Mouse=Erase"
+    LINE (PREVIEW_X, PREVIEW_Y)-STEP(spr.width + 5, spr.height + 9), 1, B
+END SUB
+
+'******************************************************************************
+'* SUB: UpdateSpriteBoundingBox
+'* Purpose: Calculates the tightest rectangle containing non-transparent pixels.
+'* Parameters:
+'*   spr (BYREF Sprite): The sprite metadata object to update.
+'*   canvas() (BYREF INTEGER): The sprite data array to analyze.
+'******************************************************************************
+SUB UpdateSpriteBoundingBox (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER
+    spr.boundingBoxX1 = spr.width + 1
+    spr.boundingBoxY1 = spr.height + 1
+    spr.boundingBoxX2 = -1
+    spr.boundingBoxY2 = -1
+    FOR y = 0 TO spr.height
+        FOR x = 0 TO spr.width
+            IF canvas(x, y) <> 0 THEN
+                IF x < spr.boundingBoxX1 THEN spr.boundingBoxX1 = x
+                IF y < spr.boundingBoxY1 THEN spr.boundingBoxY1 = y
+                IF x > spr.boundingBoxX2 THEN spr.boundingBoxX2 = x
+                IF y > spr.boundingBoxY2 THEN spr.boundingBoxY2 = y
+            END IF
+        NEXT x
+    NEXT y
+END SUB

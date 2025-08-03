@@ -1,0 +1,35 @@
+' Intro Screen Module
+
+'******************************************************************************
+'* SUB: ShowIntro
+'* Purpose: Displays the initial ASCII art intro screen.
+'* Parameters: None
+'******************************************************************************
+SUB ShowIntro ()
+    DIM t AS LONG
+    LOCATE 12, 35: COLOR 1: PRINT ">>SynthelicZ<< presents"
+    FOR t = 1 TO 4000: NEXT
+    CLS
+    LOCATE 12, 35: COLOR 2: PRINT "a Hawkynt production"
+    FOR t = 1 TO 4000: NEXT
+    CLS
+    PRINT: PRINT: PRINT
+    COLOR 2: PRINT SPC(14); "²²²²²² ²²  ²² ²²²²²²?        "; : COLOR 1: PRINT "²²  ²²   ±±±±    °°  "
+    COLOR 2: PRINT SPC(14); "?²² ?²²  ²²  ²²   ?        "; : COLOR 1: PRINT "²²  ²²  ±±  ±±  °°°° "
+    COLOR 2: PRINT SPC(14); "  ²²   ²²  ²²  ²² ?          "; : COLOR 1: PRINT "²²  ²² ±±      °°  °°"
+    COLOR 2: PRINT SPC(14); "  ²²   ²²²²²²  ²²²²           "; : COLOR 1: PRINT "²²  ²² ±±      °°  °°"
+    COLOR 2: PRINT SPC(14); "  ²²   ²²  ²²  ²² ?          "; : COLOR 1: PRINT "²²  ²² ±±  ±±?°°°°°°"
+    COLOR 2: PRINT SPC(14); "  ²²   ²²  ²²  ²²   ?        "; : COLOR 1: PRINT " ²²²²  ±±   ±± °°  °°"
+    COLOR 2: PRINT SPC(14); " ²²²²  ²²  ²² ²²²²²²?        "; : COLOR 1: PRINT "  ²²    ±±±±±± °°  °°"
+    FOR t = 1 TO 5
+     PRINT
+    NEXT
+    COLOR 4
+    PRINT , "     ÛÛÛÛÛÛ?ÛÛÛÛ?  ÛÛÛÛÛÛ ÛÛÛÛÛÛ   ÛÛ?  ÛÛÛÛÛÛ "
+    PRINT , "      ÛÛ   ? ÛÛ ÛÛ    ÛÛ   ?ÛÛ ? ÛÛ ÛÛ   ÛÛ  ÛÛ"
+    PRINT , "      ÛÛ ?   ÛÛ  ÛÛ   ÛÛ     ÛÛ   ÛÛ   ÛÛ  ÛÛ  ÛÛ"
+    PRINT , "      ÛÛÛÛ    ÛÛ  ÛÛ   ÛÛ     ÛÛ   ÛÛ   ÛÛ  ÛÛÛÛ?"
+    PRINT , "      ÛÛ ?   ÛÛ  ÛÛ   ÛÛ     ÛÛ   ÛÛ   ÛÛ  ÛÛ ÛÛ "
+    PRINT , "      ÛÛ   ? ÛÛ ÛÛ    ÛÛ     ÛÛ    ÛÛ ÛÛ   ÛÛ  ÛÛ"
+    PRINT , "     ÛÛÛÛÛÛ?ÛÛÛÛ?  ÛÛÛÛÛÛ  ÛÛÛÛ    ÛÛ?  ÛÛ?  ?
+END SUB
