@@ -10,6 +10,7 @@ $INCLUDE "FILE_BMP.SUB"
 $INCLUDE "FILE_PCX.SUB"
 $INCLUDE "FILE_ICO.SUB"
 $INCLUDE "FILE_XPM.SUB"
+$INCLUDE "ICONS.SUB"
 
 ' --- Constants ---
 CONST TRUE = -1
@@ -22,6 +23,24 @@ CONST KEY_C = 99
 CONST KEY_L = 108
 CONST KEY_N = 110
 CONST KEY_S = 115
+CONST KEY_T = 116
+CONST KEY_LEFT_ARROW = 75
+CONST KEY_RIGHT_ARROW = 77
+CONST KEY_UP_ARROW = 72
+CONST KEY_DOWN_ARROW = 80
+
+' Tool IDs
+CONST TOOL_DRAW = 0
+CONST TOOL_LINE = 1
+CONST TOOL_RECTANGLE = 2
+CONST TOOL_FILLED_RECTANGLE = 3
+CONST TOOL_CIRCLE = 4
+CONST TOOL_FILLED_CIRCLE = 5
+CONST TOOL_MOVE_LEFT = 6
+CONST TOOL_MOVE_RIGHT = 7
+CONST TOOL_MOVE_UP = 8
+CONST TOOL_MOVE_DOWN = 9
+CONST NUM_TOOLS = 10
 
 ' Grid & Drawing - These are now for screen layout only
 CONST GRID_X_MAX = 534
@@ -35,6 +54,13 @@ CONST GRID_START_Y = 50
 ' Preview Window
 CONST PREVIEW_X = GRID_X_MAX + 10
 CONST PREVIEW_Y = 150
+
+' Color Picker Grid
+CONST COLOR_GRID_X = GRID_X_MAX + 10
+CONST COLOR_GRID_Y = 10
+CONST COLOR_GRID_STEP = 10
+CONST COLOR_GRID_COLS = 4
+CONST COLOR_GRID_ROWS = 4
 
 
 DIM mouse AS MouseInfo
@@ -56,13 +82,16 @@ SUB MainEditorLoop
     DIM drawingColor AS INTEGER
     DIM currentX AS INTEGER, currentY AS INTEGER
     DIM prevX AS INTEGER, prevY AS INTEGER
-    DIM isSaved AS INTEGER, isLineMode AS INTEGER
+    DIM isSaved AS INTEGER, isLineMode AS INTEGER, selectedTool AS INTEGER
     DIM currentFileName$ AS STRING
+    DIM toolIcons(0 TO NUM_TOOLS - 1) AS STRING
 
     InitializeSprite mainSprite, spriteCanvas()
+    LoadToolIcons toolIcons()
 
     isSaved = TRUE
     isLineMode = FALSE
+    selectedTool = TOOL_DRAW
     currentFileName$ = "UNBENANNT"
     drawingColor = DEFAULT_DRAW_COLOR
     currentX = 0
@@ -89,8 +118,8 @@ SUB MainEditorLoop
 
         HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved
         LINE (currentX, currentY)-STEP(GRID_X_STEP, GRID_Y_STEP), cursorBoxColor, B
-        DrawUI drawingColor, currentFileName$, mainSprite
-        HandleKeyboardInput drawingColor, isLineMode, isSaved, currentFileName$, mainSprite, spriteCanvas()
+        DrawUI drawingColor, currentFileName$, mainSprite, selectedTool, toolIcons()
+        HandleKeyboardInput drawingColor, isLineMode, isSaved, currentFileName$, mainSprite, spriteCanvas(), selectedTool
 
         IF cursorBoxColorToggle = 1 THEN cursorBoxColorToggle = 2 ELSE cursorBoxColorToggle = 1
     LOOP
@@ -121,8 +150,9 @@ END SUB
 '*   isLineMode (BYVAL INTEGER): Flag for line drawing mode.
 '*   isSaved (BYREF INTEGER): Flag indicating if the file has unsaved changes.
 '******************************************************************************
-SUB HandleMouseInput (BYREF mouse AS MouseInfo, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL drawingColor AS INTEGER, BYVAL isLineMode AS INTEGER, BYREF isSaved AS INTEGER)
+SUB HandleMouseInput (BYREF mouse AS MouseInfo, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL drawingColor AS INTEGER, BYREF isLineMode AS INTEGER, BYREF isSaved AS INTEGER, BYVAL selectedTool AS INTEGER)
     DIM canvasX AS INTEGER, canvasY AS INTEGER, screenX AS INTEGER, screenY AS INTEGER, colorToUse AS INTEGER
+    STATIC firstClickX AS INTEGER, firstClickY AS INTEGER, isFirstClick AS INTEGER
 
     canvasX = mouse.x / GRID_X_STEP
     canvasY = (mouse.y - GRID_START_Y) / GRID_Y_STEP
@@ -132,15 +162,38 @@ SUB HandleMouseInput (BYREF mouse AS MouseInfo, BYREF spr AS Sprite, BYREF canva
     colorToUse = -1
     IF mouse.button = 1 THEN colorToUse = drawingColor
     IF mouse.button = 2 THEN colorToUse = 0
-    IF isLineMode THEN colorToUse = drawingColor
 
-    IF colorToUse <> -1 AND canvas(canvasX, canvasY) <> colorToUse THEN
-        canvas(canvasX, canvasY) = colorToUse
-        isSaved = FALSE
-        UpdateSpriteBoundingBox spr, canvas()
-        CanvasToScreen canvasX, canvasY, screenX, screenY
-        LINE (screenX, screenY)-STEP(GRID_X_STEP, GRID_Y_STEP), colorToUse, BF
-        PSET (canvasX + PREVIEW_X + 3, canvasY + PREVIEW_Y), colorToUse
+    IF colorToUse <> -1 THEN
+        SELECT CASE selectedTool
+            CASE TOOL_DRAW
+                IF canvas(canvasX, canvasY) <> colorToUse THEN
+                    canvas(canvasX, canvasY) = colorToUse
+                    isSaved = FALSE
+                    UpdateSpriteBoundingBox spr, canvas()
+                    CanvasToScreen canvasX, canvasY, screenX, screenY
+                    LINE (screenX, screenY)-STEP(GRID_X_STEP, GRID_Y_STEP), colorToUse, BF
+                    PSET (canvasX + PREVIEW_X + 3, canvasY + PREVIEW_Y), colorToUse
+                END IF
+            CASE TOOL_LINE
+                ' Line drawing will be handled by a separate interactive mode
+            CASE TOOL_RECTANGLE, TOOL_FILLED_RECTANGLE, TOOL_CIRCLE, TOOL_FILLED_CIRCLE
+                IF mouse.button = 1 THEN
+                    IF isFirstClick = FALSE THEN
+                        firstClickX = canvasX
+                        firstClickY = canvasY
+                        isFirstClick = TRUE
+                    ELSE
+                        SELECT CASE selectedTool
+                            CASE TOOL_RECTANGLE: DrawRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                            CASE TOOL_FILLED_RECTANGLE: DrawFilledRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                            CASE TOOL_CIRCLE: DrawCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                            CASE TOOL_FILLED_CIRCLE: DrawFilledCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                        END SELECT
+                        isSaved = FALSE
+                        isFirstClick = FALSE
+                    END IF
+                END IF
+        END SELECT
     END IF
 END SUB
 
@@ -155,7 +208,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleKeyboardInput (BYREF drawingColor AS INTEGER, BYREF isLineMode AS INTEGER, BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB HandleKeyboardInput (BYREF drawingColor AS INTEGER, BYREF isLineMode AS INTEGER, BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF selectedTool AS INTEGER)
     DIM inputKey$ AS STRING, keyCode AS INTEGER
     inputKey$ = INKEY$
     IF inputKey$ = "" THEN EXIT SUB
@@ -168,7 +221,15 @@ SUB HandleKeyboardInput (BYREF drawingColor AS INTEGER, BYREF isLineMode AS INTE
         CASE KEY_L: HandleLoadFile isSaved, currentFileName, spr, canvas()
         CASE KEY_S: HandleSaveFile currentFileName, isSaved, spr, canvas()
         CASE KEY_INSERT: isLineMode = NOT isLineMode
+        CASE KEY_T: HandleToolSelection selectedTool
         CASE KEY_ESC: HandleExit isSaved
+        CASE 0 ' Extended key
+            SELECT CASE keyCode
+                CASE KEY_LEFT_ARROW: IF selectedTool = TOOL_MOVE_LEFT THEN MovePixelsLeft spr, canvas(): isSaved = FALSE
+                CASE KEY_RIGHT_ARROW: IF selectedTool = TOOL_MOVE_RIGHT THEN MovePixelsRight spr, canvas(): isSaved = FALSE
+                CASE KEY_UP_ARROW: IF selectedTool = TOOL_MOVE_UP THEN MovePixelsUp spr, canvas(): isSaved = FALSE
+                CASE KEY_DOWN_ARROW: IF selectedTool = TOOL_MOVE_DOWN THEN MovePixelsDown spr, canvas(): isSaved = FALSE
+            END SELECT
     END SELECT
 END SUB
 
@@ -217,12 +278,44 @@ END SUB
 '*   color (BYREF INTEGER): The current drawing color variable to update.
 '******************************************************************************
 SUB HandleChangeColor (BYREF color AS INTEGER)
-    DIM newColorStr$ AS STRING, newColorVal AS INTEGER
-    COLOR 15: LOCATE 1, 1
-    INPUT "New Color (0-15): ", newColorStr$
-    LOCATE 1, 1: PRINT STRING$(79, " ")
-    newColorVal = VAL(newColorStr$)
-    IF newColorVal >= 0 AND newColorVal <= 15 THEN color = newColorVal
+    DIM selectedColorX AS INTEGER, selectedColorY AS INTEGER
+    DIM currentKey AS STRING
+    DIM oldColor AS INTEGER
+
+    oldColor = color
+    selectedColorX = color MOD COLOR_GRID_COLS
+    selectedColorY = color \ COLOR_GRID_COLS
+
+    DO
+        ' Clear previous selection highlight
+        LINE (COLOR_GRID_X + selectedColorX * (COLOR_GRID_STEP + 2) - 1, COLOR_GRID_Y + selectedColorY * (COLOR_GRID_STEP + 2) - 1)-STEP(COLOR_GRID_STEP + 2, COLOR_GRID_STEP + 2), 0, B
+
+        ' Draw new selection highlight
+        LINE (COLOR_GRID_X + selectedColorX * (COLOR_GRID_STEP + 2) - 1, COLOR_GRID_Y + selectedColorY * (COLOR_GRID_STEP + 2) - 1)-STEP(COLOR_GRID_STEP + 2, COLOR_GRID_STEP + 2), 15, B
+
+        currentKey = INKEY$
+        SELECT CASE ASC(currentKey)
+            CASE 0 ' Extended key
+                SELECT CASE ASC(RIGHT$(currentKey, 1))
+                    CASE KEY_LEFT_ARROW
+                        selectedColorX = (selectedColorX - 1 + COLOR_GRID_COLS) MOD COLOR_GRID_COLS
+                    CASE KEY_RIGHT_ARROW
+                        selectedColorX = (selectedColorX + 1) MOD COLOR_GRID_COLS
+                    CASE KEY_UP_ARROW
+                        selectedColorY = (selectedColorY - 1 + COLOR_GRID_ROWS) MOD COLOR_GRID_ROWS
+                    CASE KEY_DOWN_ARROW
+                        selectedColorY = (selectedColorY + 1) MOD COLOR_GRID_ROWS
+                END SELECT
+            CASE 13 ' Enter
+                color = (selectedColorY * COLOR_GRID_COLS) + selectedColorX
+                EXIT DO
+            CASE 27 ' ESC
+                color = oldColor ' Revert to old color
+                EXIT DO
+        END SELECT
+        SLEEP 1
+    LOOP
+    CLS
 END SUB
 
 '******************************************************************************
@@ -325,4 +418,48 @@ SUB HandleExit (BYVAL isSaved AS INTEGER)
     SetMouseVisibility 0
     SCREEN 0
     END
+END SUB
+
+'******************************************************************************
+'* SUB: LoadToolIcons
+'* Purpose: Loads tool icon data from ICONS.SUB into an array.
+'******************************************************************************
+SUB LoadToolIcons (BYREF toolIcons() AS STRING)
+    DIM i AS INTEGER
+    FOR i = 0 TO NUM_TOOLS - 1
+        READ toolIcons(i)
+    NEXT i
+END SUB
+
+'******************************************************************************
+'* SUB: HandleToolSelection
+'* Purpose: Allows the user to select a drawing tool interactively.
+'******************************************************************************
+SUB HandleToolSelection (BYREF selectedTool AS INTEGER)
+    DIM currentKey AS STRING
+    DIM oldTool AS INTEGER
+    oldTool = selectedTool
+
+    DO
+        ' Redraw UI to show current selection
+        DrawUI drawingColor, currentFileName$, mainSprite, selectedTool, toolIcons()
+
+        currentKey = INKEY$
+        SELECT CASE ASC(currentKey)
+            CASE 0 ' Extended key
+                SELECT CASE ASC(RIGHT$(currentKey, 1))
+                    CASE KEY_LEFT_ARROW
+                        selectedTool = (selectedTool - 1 + NUM_TOOLS) MOD NUM_TOOLS
+                    CASE KEY_RIGHT_ARROW
+                        selectedTool = (selectedTool + 1) MOD NUM_TOOLS
+                END SELECT
+            CASE 13 ' Enter
+                EXIT DO
+            CASE 27 ' ESC
+                selectedTool = oldTool ' Revert to old tool
+                EXIT DO
+        END SELECT
+        SLEEP 1
+    LOOP
+    CLS
 END SUB
