@@ -34,6 +34,7 @@ These are standard formats for broader compatibility. When saving in these forma
 *   **`.PCX` (ZSoft Paintbrush):** A classic DOS-era image format that uses Run-Length Encoding (RLE) for compression. It supports a 256-color palette, though this editor uses the standard 16-color VGA palette.
 *   **`.BMP` (Windows Bitmap):** A standard, uncompressed Windows image format. The editor saves 16-color BMP files, which are widely supported.
 *   **`.ICO` (Windows Icon):** The standard format for icons in Windows. The editor creates 16-color icons, including the necessary transparency masks.
+*   **`.XPM` (X PixMap):** A text-based image format commonly used in X Window System environments. It stores image data as C-style arrays, making it human-readable and easily embeddable in source code.
 
 ## 💻 How to Use
 

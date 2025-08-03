@@ -1,0 +1,139 @@
+' .XPM File Format Module
+
+$INCLUDE "SPRITE_OPS.SUB"
+
+'******************************************************************************
+'* SUB: WriteXPMFile
+'* Purpose: Writes the canvas to a .XPM file.
+'*          Trims transparent pixels from the edges.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path for the new file.
+'*   spr (BYREF Sprite): The sprite metadata (for bounding box).
+'*   canvas() (BYREF INTEGER): The sprite data array to save.
+'******************************************************************************
+SUB WriteXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM fileNum AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM width AS INTEGER, height AS INTEGER
+    DIM colorChars(0 TO 15) AS STRING
+    DIM colorMap(0 TO 15) AS STRING
+
+    ' Check if there is anything to save
+    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+
+    width = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
+    height = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+
+    ' --- Define XPM Characters and Colors ---
+    colorChars(0) = " ": colorMap(0) = "c #000000"
+    colorChars(1) = ".": colorMap(1) = "c #0000AA"
+    colorChars(2) = "X": colorMap(2) = "c #00AA00"
+    colorChars(3) = "o": colorMap(3) = "c #00AAAA"
+    colorChars(4) = "O": colorMap(4) = "c #AA0000"
+    colorChars(5) = "+": colorMap(5) = "c #AA00AA"
+    colorChars(6) = "@": colorMap(6) = "c #AA5500"
+    colorChars(7) = "#": colorMap(7) = "c #AAAAAA"
+    colorChars(8) = "$": colorMap(8) = "c #555555"
+    colorChars(9) = "%": colorMap(9) = "c #5555FF"
+    colorChars(10) = "&": colorMap(10) = "c #55FF55"
+    colorChars(11) = "*": colorMap(11) = "c #55FFFF"
+    colorChars(12) = "=": colorMap(12) = "c #FF5555"
+    colorChars(13) = "-": colorMap(13) = "c #FF55FF"
+    colorChars(14) = ";": colorMap(14) = "c #FFFF55"
+    colorChars(15) = ":": colorMap(15) = "c #FFFFFF"
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR OUTPUT AS #fileNum
+
+    ' --- Write XPM Header ---
+    PRINT #fileNum, "! XPM"
+    PRINT #fileNum, "static char * hawkynt_xpm[] = {"
+    PRINT #fileNum, CHR$(34) + STR$(width) + " " + STR$(height) + " 16 1" + CHR$(34) + ","
+
+    ' --- Write Color Map ---
+    FOR i = 0 TO 15
+        PRINT #fileNum, CHR$(34) + colorChars(i) + " " + colorMap(i) + CHR$(34) + ","
+    NEXT i
+
+    ' --- Write Pixel Data ---
+    FOR y = spr.boundingBoxY1 TO spr.boundingBoxY2
+        DIM rowData AS STRING
+        rowData = ""
+        FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2
+            rowData = rowData + colorChars(canvas(x, y))
+        NEXT x
+        PRINT #fileNum, CHR$(34) + rowData + CHR$(34) + IIF$(y = spr.boundingBoxY2, "", ",")
+    NEXT y
+
+    PRINT #fileNum, "};"
+    CLOSE #fileNum
+END SUB
+
+'******************************************************************************
+'* SUB: ReadXPMFile
+'* Purpose: Reads a .XPM file into the canvas.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path to the .XPM file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to fill.
+'******************************************************************************
+SUB ReadXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM fileNum AS INTEGER
+    DIM lineData AS STRING, temp AS STRING
+    DIM width AS INTEGER, height AS INTEGER, numColors AS INTEGER, charsPerPixel AS INTEGER
+    DIM colorMap(0 TO 255) AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM startX AS INTEGER, startY AS INTEGER
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR INPUT AS #fileNum
+
+    ' --- Read Header ---
+    LINE INPUT #fileNum, lineData
+    IF lineData <> "! XPM" THEN GOTO ReadError
+    LINE INPUT #fileNum, lineData ' Skip static char line
+
+    ' --- Read Dimensions ---
+    LINE INPUT #fileNum, lineData
+    temp = LTRIM$(RTRIM$(MID$(lineData, 2, INSTR(lineData, " ") - 2)))
+    width = VAL(temp)
+    temp = LTRIM$(RTRIM$(MID$(lineData, INSTR(lineData, " ") + 1)))
+    height = VAL(temp)
+    temp = LTRIM$(RTRIM$(MID$(temp, INSTR(temp, " ") + 1)))
+    numColors = VAL(temp)
+    temp = LTRIM$(RTRIM$(MID$(temp, INSTR(temp, " ") + 1)))
+    charsPerPixel = VAL(temp)
+
+    IF charsPerPixel <> 1 OR numColors > 256 THEN GOTO ReadError
+
+    ' --- Read Color Map ---
+    FOR i = 0 TO numColors - 1
+        LINE INPUT #fileNum, lineData
+        DIM charCode AS INTEGER
+        charCode = ASC(MID$(lineData, 2, 1))
+        ' This is a simplified loader that maps the XPM color index to the VGA index
+        colorMap(charCode) = i
+    NEXT i
+
+    ' Center the image
+    startX = (spr.width - width) / 2
+    startY = (spr.height - height) / 2
+
+    ' --- Read Pixel Data ---
+    FOR y = 0 TO height - 1
+        LINE INPUT #fileNum, lineData
+        FOR x = 0 TO width - 1
+            IF (startX + x) <= spr.width AND (startY + y) <= spr.height THEN
+                canvas(startX + x, startY + y) = colorMap(ASC(MID$(lineData, 2 + x, 1)))
+            END IF
+        NEXT x
+    NEXT y
+
+    CLOSE #fileNum
+    EXIT SUB
+
+ReadError:
+    CLOSE #fileNum
+    BEEP: LOCATE 1, 1: PRINT "Error: Invalid or unsupported XPM file."
+    SLEEP 2
+END SUB

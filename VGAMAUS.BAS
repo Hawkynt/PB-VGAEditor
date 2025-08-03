@@ -9,6 +9,7 @@ $INCLUDE "FILE_BAS.SUB"
 $INCLUDE "FILE_BMP.SUB"
 $INCLUDE "FILE_PCX.SUB"
 $INCLUDE "FILE_ICO.SUB"
+$INCLUDE "FILE_XPM.SUB"
 
 ' --- Constants ---
 CONST TRUE = -1
@@ -243,7 +244,7 @@ SUB HandleLoadFile (BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, B
     IF path$ <> "" THEN path$ = path$ + "\"
     LOCATE 1, 1: INPUT "File-Name: ", fileName$
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, [M]BMP, [I]CO: ", fileType$
+    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM: ", fileType$
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName$
@@ -256,6 +257,7 @@ SUB HandleLoadFile (BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, B
         CASE "P": ReadPCXFile fullPath$ + ".PCX", spr, canvas()
         CASE "M": ReadBMPFile fullPath$ + ".BMP", spr, canvas()
         CASE "I": ReadICOFile fullPath$ + ".ICO", spr, canvas()
+        CASE "X": ReadXPMFile fullPath$ + ".XPM", spr, canvas()
     END SELECT
     UpdateSpriteBoundingBox spr, canvas()
     RenderCanvas spr, canvas()
@@ -279,7 +281,7 @@ SUB HandleSaveFile (BYREF currentFileName AS STRING, BYREF isSaved AS INTEGER, B
     IF path$ <> "" THEN path$ = path$ + "\"
     LOCATE 1, 1: INPUT "File-Name: ", fileName$
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, [M]BMP, [I]CO: ", fileType$
+    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM: ", fileType$
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName$
@@ -291,6 +293,7 @@ SUB HandleSaveFile (BYREF currentFileName AS STRING, BYREF isSaved AS INTEGER, B
         CASE "p": WritePCXFile fullPath$ + ".PCX", spr, canvas()
         CASE "m": WriteBMPFile fullPath$ + ".BMP", spr, canvas()
         CASE "i": WriteICOFile fullPath$ + ".ICO", spr, canvas()
+        CASE "x": WriteXPMFile fullPath$ + ".XPM", spr, canvas()
     END SELECT
     isSaved = TRUE
 END SUB

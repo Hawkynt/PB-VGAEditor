@@ -246,5 +246,4 @@ SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     NEXT y
 
     CLOSE #fileNum
-    UpdateSpriteBoundingBox spr, canvas()
 END SUB

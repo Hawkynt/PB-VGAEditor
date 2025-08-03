@@ -6,6 +6,7 @@ $INCLUDE "FILE_BAS.SUB"
 $INCLUDE "FILE_BMP.SUB"
 $INCLUDE "FILE_PCX.SUB"
 $INCLUDE "FILE_ICO.SUB"
+$INCLUDE "FILE_XPM.SUB"
 
 ' --- Constants ---
 CONST TEST_WIDTH = 32
@@ -37,6 +38,7 @@ TestFileFormat "BAS", mainSprite, originalCanvas(), loadedCanvas()
 TestFileFormat "PCX", mainSprite, originalCanvas(), loadedCanvas()
 TestFileFormat "BMP", mainSprite, originalCanvas(), loadedCanvas()
 TestFileFormat "ICO", mainSprite, originalCanvas(), loadedCanvas()
+TestFileFormat "XPM", mainSprite, originalCanvas(), loadedCanvas()
 
 PRINT "
 All tests complete."
@@ -72,6 +74,7 @@ SUB TestFileFormat (BYVAL formatName AS STRING, BYREF spr AS Sprite, BYREF origi
         CASE "PCX": WritePCXFile fileName, spr, loaded()
         CASE "BMP": WriteBMPFile fileName, spr, loaded()
         CASE "ICO": WriteICOFile fileName, spr, loaded()
+        CASE "XPM": WriteXPMFile fileName, spr, loaded()
     END SELECT
 
     ' --- Clear the loaded canvas ---
@@ -84,6 +87,7 @@ SUB TestFileFormat (BYVAL formatName AS STRING, BYREF spr AS Sprite, BYREF origi
         CASE "PCX": ReadPCXFile fileName, spr, loaded()
         CASE "BMP": ReadBMPFile fileName, spr, loaded()
         CASE "ICO": ReadICOFile fileName, spr, loaded()
+        CASE "XPM": ReadXPMFile fileName, spr, loaded()
     END SELECT
 
     ' --- Compare the canvases ---
