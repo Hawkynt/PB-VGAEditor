@@ -6,6 +6,9 @@ $INCLUDE "MOUSE.SUB"
 $INCLUDE "SPRITE_OPS.SUB"
 $INCLUDE "FILE_VGA.SUB"
 $INCLUDE "FILE_BAS.SUB"
+$INCLUDE "FILE_BMP.SUB"
+$INCLUDE "FILE_PCX.SUB"
+$INCLUDE "FILE_ICO.SUB"
 
 ' --- Constants ---
 CONST TRUE = -1
@@ -240,7 +243,7 @@ SUB HandleLoadFile (BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, B
     IF path$ <> "" THEN path$ = path$ + "\"
     LOCATE 1, 1: INPUT "File-Name: ", fileName$
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[O]BJ or [B]AS: ", fileType$
+    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, [M]BMP, [I]CO: ", fileType$
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName$
@@ -248,9 +251,13 @@ SUB HandleLoadFile (BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, B
     ClearCanvas spr, canvas()
 
     SELECT CASE UCASE$(fileType$)
-        CASE "O": ReadVGAFile fullPath$ + ".VGA", spr, canvas()
+        CASE "V": ReadVGAFile fullPath$ + ".VGA", spr, canvas()
         CASE "B": ReadBASFile fullPath$ + ".BAS", spr, canvas()
+        CASE "P": ReadPCXFile fullPath$ + ".PCX", spr, canvas()
+        CASE "M": ReadBMPFile fullPath$ + ".BMP", spr, canvas()
+        CASE "I": ReadICOFile fullPath$ + ".ICO", spr, canvas()
     END SELECT
+    UpdateSpriteBoundingBox spr, canvas()
     RenderCanvas spr, canvas()
     isSaved = TRUE
 END SUB
@@ -272,15 +279,18 @@ SUB HandleSaveFile (BYREF currentFileName AS STRING, BYREF isSaved AS INTEGER, B
     IF path$ <> "" THEN path$ = path$ + "\"
     LOCATE 1, 1: INPUT "File-Name: ", fileName$
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[O]BJ or [B]AS: ", fileType$
+    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, [M]BMP, [I]CO: ", fileType$
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName$
     fullPath$ = path$ + LEFT$(fileName$, 8)
     
     SELECT CASE LCASE$(fileType$)
-        CASE "o": WriteVGAFile fullPath$ + ".VGA", spr, canvas()
+        CASE "v": WriteVGAFile fullPath$ + ".VGA", spr, canvas()
         CASE "b": WriteBASFile fullPath$ + ".BAS", spr, canvas()
+        CASE "p": WritePCXFile fullPath$ + ".PCX", spr, canvas()
+        CASE "m": WriteBMPFile fullPath$ + ".BMP", spr, canvas()
+        CASE "i": WriteICOFile fullPath$ + ".ICO", spr, canvas()
     END SELECT
     isSaved = TRUE
 END SUB

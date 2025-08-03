@@ -35,7 +35,6 @@ SUB ReadBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
         END IF
     LOOP
     CLOSE #fileNum
-    UpdateSpriteBoundingBox spr, canvas()
 END SUB
 
 '******************************************************************************

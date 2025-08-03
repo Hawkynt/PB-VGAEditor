@@ -1,0 +1,174 @@
+' .PCX File Format Module
+
+$INCLUDE "SPRITE_OPS.SUB"
+
+TYPE PCXHeader
+    Manufacturer AS STRING * 1
+    Version      AS STRING * 1
+    Encoding     AS STRING * 1
+    BitsPerPixel AS STRING * 1
+    Xmin         AS INTEGER
+    Ymin         AS INTEGER
+    Xmax         AS INTEGER
+    Ymax         AS INTEGER
+    HDpi         AS INTEGER
+    VDpi         AS INTEGER
+    Colormap     AS STRING * 48
+    Reserved     AS STRING * 1
+    NPlanes      AS STRING * 1
+    BytesPerLine AS INTEGER
+    PaletteInfo  AS INTEGER
+    HScrSize     AS INTEGER
+    VScrSize     AS INTEGER
+    Filler       AS STRING * 54
+END TYPE
+
+'******************************************************************************
+'* SUB: WritePCXFile
+'* Purpose: Writes the canvas to a .PCX file using RLE compression.
+'*          Trims transparent pixels from the edges.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path for the new file.
+'*   spr (BYREF Sprite): The sprite metadata (for bounding box).
+'*   canvas() (BYREF INTEGER): The sprite data array to save.
+'******************************************************************************
+SUB WritePCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM header AS PCXHeader
+    DIM fileNum AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM width AS INTEGER, height AS INTEGER
+    DIM runCount AS INTEGER
+    DIM runValue AS INTEGER
+    DIM vgaPalette(0 TO 15) AS STRING * 3
+
+    ' Check if there is anything to save
+    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+
+    width = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
+    height = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+
+    ' --- Fill PCX Header ---
+    header.Manufacturer = CHR$(10) ' ZSoft
+    header.Version = CHR$(5)      ' Version 3.0 with palette
+    header.Encoding = CHR$(1)      ' RLE encoding
+    header.BitsPerPixel = CHR$(8)  ' 8 bits per pixel
+    header.Xmin = 0
+    header.Ymin = 0
+    header.Xmax = width - 1
+    header.Ymax = height - 1
+    header.HDpi = width
+    header.VDpi = height
+    header.Colormap = STRING$(48, 0) ' Not used for VGA
+    header.Reserved = CHR$(0)
+    header.NPlanes = CHR$(1) ' 1 plane for 256-color mode
+    header.BytesPerLine = width
+    header.PaletteInfo = 1 ' Color
+    header.HScrSize = 0
+    header.VScrSize = 0
+    header.Filler = STRING$(54, 0)
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+
+    ' --- Write Header ---
+    PUT #fileNum, , header
+
+    ' --- Write Image Data with RLE ---
+    FOR y = spr.boundingBoxY1 TO spr.boundingBoxY2
+        x = spr.boundingBoxX1
+        DO WHILE x <= spr.boundingBoxX2
+            runValue = canvas(x, y)
+            runCount = 1
+            x = x + 1
+            DO WHILE x <= spr.boundingBoxX2 AND canvas(x, y) = runValue AND runCount < 63
+                runCount = runCount + 1
+                x = x + 1
+            LOOP
+            
+            IF runCount > 1 OR (runValue AND &HC0) = &HC0 THEN
+                PUT #fileNum, , CHR$(&HC0 OR runCount)
+            END IF
+            PUT #fileNum, , CHR$(runValue)
+        LOOP
+    NEXT y
+
+    ' --- Write 256-Color Palette Signature and Palette ---
+    PUT #fileNum, , CHR$(12) ' Palette signature
+
+    vgaPalette(0) = CHR$(0, 0, 0): vgaPalette(1) = CHR$(0, 0, 170): vgaPalette(2) = CHR$(0, 170, 0): vgaPalette(3) = CHR$(0, 170, 170)
+    vgaPalette(4) = CHR$(170, 0, 0): vgaPalette(5) = CHR$(170, 0, 170): vgaPalette(6) = CHR$(170, 85, 0): vgaPalette(7) = CHR$(170, 170, 170)
+    vgaPalette(8) = CHR$(85, 85, 85): vgaPalette(9) = CHR$(85, 85, 255): vgaPalette(10) = CHR$(85, 255, 85): vgaPalette(11) = CHR$(85, 255, 255)
+    vgaPalette(12) = CHR$(255, 85, 85): vgaPalette(13) = CHR$(255, 85, 255): vgaPalette(14) = CHR$(255, 255, 85): vgaPalette(15) = CHR$(255, 255, 255)
+    
+    FOR x = 0 TO 15
+        PUT #fileNum, , vgaPalette(x)
+    NEXT x
+    
+    ' Pad the rest of the 256-color palette
+    PUT #fileNum, , STRING$(240 * 3, 0)
+
+    CLOSE #fileNum
+END SUB
+
+'******************************************************************************
+'* SUB: ReadPCXFile
+'* Purpose: Reads a .PCX file into the canvas.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path to the .PCX file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to fill.
+'******************************************************************************
+SUB ReadPCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM header AS PCXHeader
+    DIM fileNum AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM width AS INTEGER, height AS INTEGER
+    DIM startX AS INTEGER, startY AS INTEGER
+    DIM runCount AS INTEGER, runValue AS INTEGER
+    DIM dataByte AS STRING * 1
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+
+    ' --- Read Header ---
+    GET #fileNum, , header
+
+    ' --- Validate Header ---
+    IF ASC(header.Manufacturer) <> 10 OR ASC(header.Encoding) <> 1 OR ASC(header.BitsPerPixel) <> 8 THEN
+        CLOSE #fileNum
+        BEEP: LOCATE 1, 1: PRINT "Error: Not a valid 256-color PCX file."
+        SLEEP 2
+        EXIT SUB
+    END IF
+
+    width = header.Xmax - header.Xmin + 1
+    height = header.Ymax - header.Ymin + 1
+
+    ' Center the image on the canvas
+    startX = (spr.width - width) / 2
+    startY = (spr.height - height) / 2
+
+    ' --- Read Image Data with RLE Decompression ---
+    FOR y = 0 TO height - 1
+        x = 0
+        DO WHILE x < width
+            dataByte = INPUT$(1, #fileNum)
+            IF (ASC(dataByte) AND &HC0) = &HC0 THEN
+                runCount = ASC(dataByte) AND &H3F
+                runValue = ASC(INPUT$(1, #fileNum))
+            ELSE
+                runCount = 1
+                runValue = ASC(dataByte)
+            END IF
+
+            FOR i = 1 TO runCount
+                IF (startX + x + i - 1) <= spr.width AND (startY + y) <= spr.height THEN
+                    canvas(startX + x + i - 1, startY + y) = runValue
+                END IF
+            NEXT i
+            x = x + runCount
+        LOOP
+    NEXT y
+
+    CLOSE #fileNum
+END SUB

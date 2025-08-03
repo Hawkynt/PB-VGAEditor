@@ -1,0 +1,175 @@
+' .BMP File Format Module
+
+$INCLUDE "SPRITE_OPS.SUB"
+
+TYPE BMPHeader
+    bfType      AS STRING * 2
+    bfSize      AS LONG
+    bfReserved1 AS INTEGER
+    bfReserved2 AS INTEGER
+    bfOffBits   AS LONG
+END TYPE
+
+TYPE BMPInfoHeader
+    biSize          AS LONG
+    biWidth         AS LONG
+    biHeight        AS LONG
+    biPlanes        AS INTEGER
+    biBitCount      AS INTEGER
+    biCompression   AS LONG
+    biSizeImage     AS LONG
+    biXPelsPerMeter AS LONG
+    biYPelsPerMeter AS LONG
+    biClrUsed       AS LONG
+    biClrImportant  AS LONG
+END TYPE
+
+'******************************************************************************
+'* SUB: WriteBMPFile
+'* Purpose: Writes the canvas to a 16-color .BMP file.
+'*          Trims transparent pixels from the edges.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path for the new file.
+'*   spr (BYREF Sprite): The sprite metadata (for bounding box).
+'*   canvas() (BYREF INTEGER): The sprite data array to save.
+'******************************************************************************
+SUB WriteBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM bmpH AS BMPHeader
+    DIM bmpIH AS BMPInfoHeader
+    DIM fileNum AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM width AS INTEGER, height AS INTEGER
+    DIM rowPadding AS INTEGER, rowSize AS INTEGER
+    DIM pixelDataSize AS LONG
+    DIM vgaPalette(0 TO 15) AS LONG
+
+    ' Check if there is anything to save
+    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+
+    width = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
+    height = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+
+    ' BMP rows are padded to a multiple of 4 bytes
+    rowSize = INT((width * 4 + 31) / 32) * 4
+    rowPadding = rowSize - (width / 2)
+    pixelDataSize = rowSize * height
+
+    ' --- Fill BMP File Header ---
+    bmpH.bfType = "BM"
+    bmpH.bfSize = 54 + (16 * 4) + pixelDataSize
+    bmpH.bfReserved1 = 0
+    bmpH.bfReserved2 = 0
+    bmpH.bfOffBits = 54 + (16 * 4)
+
+    ' --- Fill BMP Info Header ---
+    bmpIH.biSize = 40
+    bmpIH.biWidth = width
+    bmpIH.biHeight = height
+    bmpIH.biPlanes = 1
+    bmpIH.biBitCount = 4 ' 4 bits per pixel for 16 colors
+    bmpIH.biCompression = 0 ' BI_RGB (no compression)
+    bmpIH.biSizeImage = pixelDataSize
+    bmpIH.biXPelsPerMeter = 0
+    bmpIH.biYPelsPerMeter = 0
+    bmpIH.biClrUsed = 16
+    bmpIH.biClrImportant = 16
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+
+    ' --- Write Headers ---
+    PUT #fileNum, , bmpH
+    PUT #fileNum, , bmpIH
+
+    ' --- Write Palette (BGR format) ---
+    vgaPalette(0) = &H000000: vgaPalette(1) = &HAA0000: vgaPalette(2) = &H00AA00: vgaPalette(3) = &HAAAA00
+    vgaPalette(4) = &H0000AA: vgaPalette(5) = &HAA00AA: vgaPalette(6) = &H0055AA: vgaPalette(7) = &HAAAAAA
+    vgaPalette(8) = &H555555: vgaPalette(9) = &HFF5555: vgaPalette(10) = &H55FF55: vgaPalette(11) = &HFFFF55
+    vgaPalette(12) = &H5555FF: vgaPalette(13) = &HFF55FF: vgaPalette(14) = &H55FFFF: vgaPalette(15) = &HFFFFFF
+    FOR x = 0 TO 15
+        PUT #fileNum, , vgaPalette(x)
+    NEXT x
+
+    ' --- Write Pixel Data (upside-down and packed) ---
+    FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
+        FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2 STEP 2
+            DIM byteVal AS STRING * 1
+            DIM p1 AS INTEGER, p2 AS INTEGER
+            p1 = canvas(x, y)
+            IF x + 1 > spr.boundingBoxX2 THEN
+                p2 = 0
+            ELSE
+                p2 = canvas(x + 1, y)
+            END IF
+            byteVal = CHR$((p1 * 16) + p2)
+            PUT #fileNum, , byteVal
+        NEXT x
+        IF rowPadding > 0 THEN PUT #fileNum, , STRING$(rowPadding, 0)
+    NEXT y
+
+    CLOSE #fileNum
+END SUB
+
+'******************************************************************************
+'* SUB: ReadBMPFile
+'* Purpose: Reads a 16-color .BMP file into the canvas.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path to the .BMP file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to fill.
+'******************************************************************************
+SUB ReadBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM bmpH AS BMPHeader
+    DIM bmpIH AS BMPInfoHeader
+    DIM fileNum AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM width AS LONG, height AS LONG
+    DIM startX AS INTEGER, startY AS INTEGER
+    DIM rowPadding AS INTEGER, rowSize AS INTEGER
+    DIM byteVal AS STRING * 1, p1 AS INTEGER, p2 AS INTEGER
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+
+    ' --- Read Headers ---
+    GET #fileNum, , bmpH
+    GET #fileNum, , bmpIH
+
+    ' --- Validate Header ---
+    IF bmpH.bfType <> "BM" OR bmpIH.biBitCount <> 4 OR bmpIH.biCompression <> 0 THEN
+        CLOSE #fileNum
+        BEEP: LOCATE 1, 1: PRINT "Error: Not a valid 16-color BMP file."
+        SLEEP 2
+        EXIT SUB
+    END IF
+
+    width = bmpIH.biWidth
+    height = bmpIH.biHeight
+    rowSize = INT((width * 4 + 31) / 32) * 4
+    rowPadding = rowSize - (width / 2)
+
+    ' Center the image on the canvas
+    startX = (spr.width - width) / 2
+    startY = (spr.height - height) / 2
+
+    ' --- Seek to Pixel Data ---
+    SEEK #fileNum, bmpH.bfOffBits + 1
+
+    ' --- Read Pixel Data (upside-down) ---
+    FOR y = height - 1 TO 0 STEP -1
+        FOR x = 0 TO width - 1 STEP 2
+            byteVal = INPUT$(1, #fileNum)
+            p1 = ASC(byteVal) \ 16
+            p2 = ASC(byteVal) AND 15
+            IF (startX + x) <= spr.width AND (startY + y) <= spr.height THEN
+                canvas(startX + x, startY + y) = p1
+            END IF
+            IF (startX + x + 1) <= spr.width AND (startY + y) <= spr.height THEN
+                canvas(startX + x + 1, startY + y) = p2
+            END IF
+        NEXT x
+        IF rowPadding > 0 THEN SEEK #fileNum, LOF(#fileNum) - (LOF(#fileNum) - (SEEK(#fileNum) + rowPadding))
+    NEXT y
+
+    CLOSE #fileNum
+END SUB

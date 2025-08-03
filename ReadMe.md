@@ -18,58 +18,22 @@
 
 ## 💾 File Formats
 
-The editor supports two file formats for saving and loading sprites, each with its own advantages.
+The editor supports several file formats for saving and loading sprites.
 
-### `.VGA` (Raw Binary Format)
+### Native Formats
 
-This is a simple and direct way to store the sprite.
+These formats are designed for direct use in PowerBASIC projects.
 
-*   **Structure:** The file is a raw, uncompressed sequence of bytes. Each byte represents one pixel, and its value (0-15) corresponds directly to a color in the 16-color VGA palette.
-*   **Pixel Order:** The pixels are stored from left-to-right and top-to-bottom, like reading a book.
-*   **No Metadata:** The file contains **no header** or information about the sprite's dimensions (width/height). The program loading the file must know the dimensions beforehand to interpret the data correctly.
-*   **Use Case:** Best for speed and simplicity when you have a fixed-size sprite and your program already knows its dimensions.
+*   **`.VGA` (Raw Binary Format):** A simple, uncompressed sequence of bytes representing the entire sprite canvas. It's fast to load but contains no metadata; the loading program must know the sprite's dimensions.
+*   **`.BAS` (PowerBASIC Source Code):** A PowerBASIC source file containing the sprite data in `DATA` statements. It includes simple compression by trimming transparency, making it ideal for integration into PowerBASIC projects.
 
-#### Example
-Imagine a simple 4x3 sprite of a red arrow (color 4) on a transparent background (color 0).
+### Standard Image Formats
 
-```
-....  (0,0,0,0)
-.RR.  (0,4,4,0)
-....  (0,0,0,0)
-```
+These are standard formats for broader compatibility. When saving in these formats, the editor automatically trims transparent borders to export only the visible parts of the sprite.
 
-The `.VGA` file would be a sequence of 12 bytes, one for each pixel:
-`00 00 00 00 00 04 04 00 00 00 00 00`
-
-### `.BAS` (PowerBASIC Source Code)
-
-This format is more advanced and is designed for easy integration into PowerBASIC projects.
-
-*   **Structure:** The file is a complete, runnable PowerBASIC program. It contains a small "player" routine to draw the sprite and embeds the pixel data within `DATA` statements.
-*   **Data Storage:** Each row of the sprite is stored as a string in a `DATA` statement. Each pixel's color is represented by a two-digit number (e.g., `"04"` for red). A final `DATA "99"` marks the end of the sprite.
-*   **Simple Compression:** This format is more efficient than `.VGA` because it uses simple compression techniques:
-    *   **Trimming:** Transparent pixels (color 0) at the beginning or end of a row are trimmed off.
-    *   **Skipping Empty Rows:** Entirely transparent rows at the top or bottom of the sprite are omitted.
-*   **Use Case:** Ideal for PowerBASIC developers. You can directly include this file in your project to display the sprite without needing to write a separate loading function.
-
-#### Example
-Using the same 4x3 red arrow sprite:
-
-```
-....  (Transparent row - will be skipped)
-.RR.  (Row with data)
-....  (Transparent row - will be skipped)
-```
-
-The `.BAS` file will contain the player code plus the following `DATA` statements. Notice how it only stores the data for the middle row, and even then, it trims the transparent pixels from the start and end.
-
-```powerbasic
-' ... player code ...
-DATA "0404"
-DATA "99"
-' ... rest of the code ...
-```
-This is much more compact than the raw `.VGA` format for sprites with a lot of transparency.
+*   **`.PCX` (ZSoft Paintbrush):** A classic DOS-era image format that uses Run-Length Encoding (RLE) for compression. It supports a 256-color palette, though this editor uses the standard 16-color VGA palette.
+*   **`.BMP` (Windows Bitmap):** A standard, uncompressed Windows image format. The editor saves 16-color BMP files, which are widely supported.
+*   **`.ICO` (Windows Icon):** The standard format for icons in Windows. The editor creates 16-color icons, including the necessary transparency masks.
 
 ## 💻 How to Use
 

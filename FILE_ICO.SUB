@@ -1,0 +1,250 @@
+' .ICO File Format Module
+
+$INCLUDE "SPRITE_OPS.SUB"
+
+TYPE ICONDIR
+    idReserved  AS INTEGER
+    idType      AS INTEGER
+    idCount     AS INTEGER
+END TYPE
+
+TYPE ICONDIRENTRY
+    bWidth          AS STRING * 1
+    bHeight         AS STRING * 1
+    bColorCount     AS STRING * 1
+    bReserved       AS STRING * 1
+    wPlanes         AS INTEGER
+    wBitCount       AS INTEGER
+    dwBytesInRes    AS LONG
+    dwImageOffset   AS LONG
+END TYPE
+
+TYPE BITMAPINFOHEADER
+    biSize          AS LONG
+    biWidth         AS LONG
+    biHeight        AS LONG
+    biPlanes        AS INTEGER
+    biBitCount      AS INTEGER
+    biCompression   AS LONG
+    biSizeImage     AS LONG
+    biXPelsPerMeter AS LONG
+    biYPelsPerMeter AS LONG
+    biClrUsed       AS LONG
+    biClrImportant  AS LONG
+END TYPE
+
+'******************************************************************************
+'* SUB: WriteICOFile
+'* Purpose: Writes the canvas to a 16-color .ICO file.
+'*          Trims transparent pixels from the edges.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path for the new file.
+'*   spr (BYREF Sprite): The sprite metadata (for bounding box).
+'*   canvas() (BYREF INTEGER): The sprite data array to save.
+'******************************************************************************
+SUB WriteICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM idir AS ICONDIR
+    DIM ide AS ICONDIRENTRY
+    DIM bmih AS BITMAPINFOHEADER
+    DIM fileNum AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM width AS INTEGER, height AS INTEGER
+    DIM xorMaskRowSize AS INTEGER, andMaskRowSize AS INTEGER
+    DIM xorMaskSize AS LONG, andMaskSize AS LONG
+    DIM vgaPalette(0 TO 15) AS LONG
+
+    ' Check if there is anything to save
+    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+
+    width = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
+    height = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+
+    ' Row sizes must be padded to a multiple of 4 bytes
+    xorMaskRowSize = INT((width * 4 + 31) / 32) * 4
+    andMaskRowSize = INT((width + 31) / 32) * 4
+    xorMaskSize = xorMaskRowSize * height
+    andMaskSize = andMaskRowSize * height
+
+    ' --- Fill Icon Directory ---
+    idir.idReserved = 0
+    idir.idType = 1 ' Icon
+    idir.idCount = 1 ' One image
+
+    ' --- Fill Icon Directory Entry ---
+    ide.bWidth = CHR$(width)
+    ide.bHeight = CHR$(height)
+    ide.bColorCount = CHR$(16)
+    ide.bReserved = CHR$(0)
+    ide.wPlanes = 1
+    ide.wBitCount = 4
+    ide.dwBytesInRes = 40 + (16 * 4) + xorMaskSize + andMaskSize
+    ide.dwImageOffset = 6 + 16 ' Offset to BITMAPINFOHEADER
+
+    ' --- Fill DIB Header ---
+    bmih.biSize = 40
+    bmih.biWidth = width
+    bmih.biHeight = height * 2 ' Height is doubled for XOR and AND masks
+    bmih.biPlanes = 1
+    bmih.biBitCount = 4
+    bmih.biCompression = 0
+    bmih.biSizeImage = xorMaskSize + andMaskSize
+    bmih.biXPelsPerMeter = 0
+    bmih.biYPelsPerMeter = 0
+    bmih.biClrUsed = 16
+    bmih.biClrImportant = 16
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+
+    ' --- Write Headers ---
+    PUT #fileNum, , idir
+    PUT #fileNum, , ide
+    PUT #fileNum, , bmih
+
+    ' --- Write Palette (BGR format) ---
+    vgaPalette(0) = &H000000: vgaPalette(1) = &HAA0000: vgaPalette(2) = &H00AA00: vgaPalette(3) = &HAAAA00
+    vgaPalette(4) = &H0000AA: vgaPalette(5) = &HAA00AA: vgaPalette(6) = &H0055AA: vgaPalette(7) = &HAAAAAA
+    vgaPalette(8) = &H555555: vgaPalette(9) = &HFF5555: vgaPalette(10) = &H55FF55: vgaPalette(11) = &HFFFF55
+    vgaPalette(12) = &H5555FF: vgaPalette(13) = &HFF55FF: vgaPalette(14) = &H55FFFF: vgaPalette(15) = &HFFFFFF
+    FOR x = 0 TO 15
+        PUT #fileNum, , vgaPalette(x)
+    NEXT x
+
+    ' --- Write XOR (Color) Mask (upside-down) ---
+    FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
+        FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2 STEP 2
+            DIM byteVal AS STRING * 1
+            DIM p1 AS INTEGER, p2 AS INTEGER
+            p1 = canvas(x, y)
+            IF x + 1 > spr.boundingBoxX2 THEN p2 = 0 ELSE p2 = canvas(x + 1, y)
+            byteVal = CHR$((p1 * 16) + p2)
+            PUT #fileNum, , byteVal
+        NEXT x
+        IF xorMaskRowSize - (width / 2) > 0 THEN PUT #fileNum, , STRING$(xorMaskRowSize - (width / 2), 0)
+    NEXT y
+
+    ' --- Write AND (Opacity) Mask (upside-down) ---
+    FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
+        FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2 STEP 8
+            DIM byteVal AS STRING * 1, bit AS INTEGER, currentBit AS INTEGER
+            byteVal = CHR$(0)
+            FOR bit = 0 TO 7
+                currentBit = 0
+                IF x + bit <= spr.boundingBoxX2 THEN
+                    IF canvas(x + bit, y) = 0 THEN currentBit = 1
+                END IF
+                byteVal = CHR$(ASC(byteVal) OR (currentBit * (2 ^ (7 - bit))))
+            NEXT bit
+            PUT #fileNum, , byteVal
+        NEXT x
+        IF andMaskRowSize - INT((width + 7) / 8) > 0 THEN PUT #fileNum, , STRING$(andMaskRowSize - INT((width + 7) / 8), 0)
+    NEXT y
+
+    CLOSE #fileNum
+END SUB
+
+'******************************************************************************
+'* SUB: ReadICOFile
+'* Purpose: Reads a 16-color .ICO file into the canvas.
+'* Parameters:
+'*   fullPath (BYVAL STRING): The full path to the .ICO file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array to fill.
+'******************************************************************************
+SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+    DIM idir AS ICONDIR
+    DIM ide(255) AS ICONDIRENTRY
+    DIM bmih AS BITMAPINFOHEADER
+    DIM fileNum AS INTEGER
+    DIM i AS INTEGER, bestEntry AS INTEGER, bestRes AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    DIM width AS INTEGER, height AS INTEGER
+    DIM startX AS INTEGER, startY AS INTEGER
+    DIM xorMaskRowSize AS INTEGER, andMaskRowSize AS INTEGER
+    DIM byteVal AS STRING * 1, p1 AS INTEGER, p2 AS INTEGER
+    DIM andByte AS STRING * 1, bit AS INTEGER
+
+    fileNum = FREEFILE
+    OPEN fullPath FOR BINARY AS #fileNum
+
+    ' --- Read Icon Directory Header ---
+    GET #fileNum, , idir
+
+    IF idir.idType <> 1 THEN
+        CLOSE #fileNum
+        BEEP: LOCATE 1, 1: PRINT "Error: Not a valid ICO file."
+        SLEEP 2
+        EXIT SUB
+    END IF
+
+    ' --- Read All Icon Directory Entries ---
+    FOR i = 0 TO idir.idCount - 1
+        GET #fileNum, , ide(i)
+    NEXT i
+
+    ' --- Find the Best-Fitting 16-Color Image ---
+    bestEntry = -1
+    bestRes = 0
+    FOR i = 0 TO idir.idCount - 1
+        width = ASC(ide(i).bWidth)
+        height = ASC(ide(i).bHeight)
+        IF ide(i).wBitCount = 4 AND width <= spr.width AND height <= spr.height THEN
+            IF width * height > bestRes THEN
+                bestRes = width * height
+                bestEntry = i
+            END IF
+        END IF
+    NEXT i
+
+    IF bestEntry = -1 THEN
+        CLOSE #fileNum
+        BEEP: LOCATE 1, 1: PRINT "Error: No suitable 16-color icon found in file."
+        SLEEP 2
+        EXIT SUB
+    END IF
+
+    ' --- Seek to the Best Image's Data and Read its DIB Header ---
+    SEEK #fileNum, ide(bestEntry).dwImageOffset + 1
+    GET #fileNum, , bmih
+
+    width = ASC(ide(bestEntry).bWidth)
+    height = ASC(ide(bestEntry).bHeight)
+    xorMaskRowSize = INT((width * 4 + 31) / 32) * 4
+    andMaskRowSize = INT((width + 31) / 32) * 4
+
+    ' Center the image on the canvas
+    startX = (spr.width - width) / 2
+    startY = (spr.height - height) / 2
+
+    ' --- Seek to XOR Mask (Color Data) ---
+    SEEK #fileNum, ide(bestEntry).dwImageOffset + bmih.biSize + (16 * 4) + 1
+
+    ' --- Read XOR (Color) and AND (Opacity) Masks ---
+    FOR y = height - 1 TO 0 STEP -1
+        FOR x = 0 TO width - 1 STEP 2
+            byteVal = INPUT$(1, #fileNum)
+            p1 = ASC(byteVal) \ 16
+            p2 = ASC(byteVal) AND 15
+            IF (startX + x) <= spr.width AND (startY + y) <= spr.height THEN canvas(startX + x, startY + y) = p1
+            IF (startX + x + 1) <= spr.width AND (startY + y) <= spr.height THEN canvas(startX + x + 1, startY + y) = p2
+        NEXT x
+        IF xorMaskRowSize - (width / 2) > 0 THEN SEEK #fileNum, LOF(#fileNum) - (LOF(#fileNum) - (SEEK(#fileNum) + (xorMaskRowSize - (width / 2))))
+    NEXT y
+
+    FOR y = height - 1 TO 0 STEP -1
+        FOR x = 0 TO width - 1 STEP 8
+            andByte = INPUT$(1, #fileNum)
+            FOR bit = 0 TO 7
+                IF (ASC(andByte) AND (2 ^ (7 - bit))) <> 0 THEN
+                    IF (startX + x + bit) <= spr.width AND (startY + y) <= spr.height THEN
+                        canvas(startX + x + bit, startY + y) = 0
+                    END IF
+                END IF
+            NEXT bit
+        NEXT x
+        IF andMaskRowSize - INT((width + 7) / 8) > 0 THEN SEEK #fileNum, LOF(#fileNum) - (LOF(#fileNum) - (SEEK(#fileNum) + (andMaskRowSize - INT((width + 7) / 8))))
+    NEXT y
+
+    CLOSE #fileNum
+    UpdateSpriteBoundingBox spr, canvas()
+END SUB
