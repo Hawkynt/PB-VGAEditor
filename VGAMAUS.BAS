@@ -116,7 +116,7 @@ SUB MainEditorLoop
         IF currentY < GRID_START_Y THEN currentY = GRID_START_Y
         IF currentY > GRID_Y_MAX - GRID_Y_STEP THEN currentY = GRID_Y_MAX - GRID_Y_STEP
 
-        HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved
+        HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved, selectedTool
         LINE (currentX, currentY)-STEP(GRID_X_STEP, GRID_Y_STEP), cursorBoxColor, B
         DrawUI drawingColor, currentFileName$, mainSprite, selectedTool, toolIcons()
         HandleKeyboardInput drawingColor, isLineMode, isSaved, currentFileName$, mainSprite, spriteCanvas(), selectedTool
@@ -425,9 +425,13 @@ END SUB
 '* Purpose: Loads tool icon data from ICONS.SUB into an array.
 '******************************************************************************
 SUB LoadToolIcons (BYREF toolIcons() AS STRING)
-    DIM i AS INTEGER
+    DIM i AS INTEGER, j AS INTEGER, iconRow AS STRING
     FOR i = 0 TO NUM_TOOLS - 1
-        READ toolIcons(i)
+        toolIcons(i) = ""
+        FOR j = 1 TO 8
+            READ iconRow
+            toolIcons(i) = toolIcons(i) + iconRow
+        NEXT j
     NEXT i
 END SUB
 
@@ -441,8 +445,9 @@ SUB HandleToolSelection (BYREF selectedTool AS INTEGER)
     oldTool = selectedTool
 
     DO
-        ' Redraw UI to show current selection
-        DrawUI drawingColor, currentFileName$, mainSprite, selectedTool, toolIcons()
+        ' Show tool selection prompt
+        LOCATE 1, 1: COLOR 15
+        PRINT "Select Tool: [0=Draw 1=Line 2=Rect 3=FillRect 4=Circle 5=FillCircle 6-9=Move] Tool=" + STR$(selectedTool) + " ";
 
         currentKey = INKEY$
         SELECT CASE ASC(currentKey)
@@ -461,5 +466,5 @@ SUB HandleToolSelection (BYREF selectedTool AS INTEGER)
         END SELECT
         SLEEP 1
     LOOP
-    CLS
+    LOCATE 1, 1: PRINT STRING$(79, " ")
 END SUB

@@ -101,7 +101,7 @@ END SUB
 '******************************************************************************
 SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, BYREF spr AS Sprite, BYVAL selectedTool AS INTEGER, BYREF toolIcons() AS STRING)
     DIM x AS INTEGER, y AS INTEGER, i AS INTEGER
-    LOCATE 1, 70: PRINT currentFileName$
+    LOCATE 1, 70: PRINT currentFileName
     LOCATE 2, 1: COLOR 5
     PRINT "ESC=Exit  N=New  L=Load  S=Save  INS=Line-Mode  T=Tools"
     
@@ -287,7 +287,7 @@ END SUB
 '* Purpose: Draws a filled circle on the canvas.
 '******************************************************************************
 SUB DrawFilledCircle (BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL color AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, d AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER, d AS INTEGER, i AS INTEGER
     x = 0
     y = radius
     d = 3 - 2 * radius
