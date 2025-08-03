@@ -16,7 +16,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata object to initialize.
 '*   canvas() (BYREF INTEGER): The integer array to be dimensioned.
 '******************************************************************************
-SUB InitializeSprite (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB InitializeSprite (spr AS Sprite, canvas() AS INTEGER)
     spr.width = (GRID_X_MAX / GRID_X_STEP)
     spr.height = (GRID_Y_MAX - GRID_START_Y) / GRID_Y_STEP
     REDIM canvas(0 TO spr.width, 0 TO spr.height) AS INTEGER
@@ -30,7 +30,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to clear.
 '******************************************************************************
-SUB ClearCanvas (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB ClearCanvas (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = 0 TO spr.height
         FOR x = 0 TO spr.width
@@ -47,7 +47,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to render.
 '******************************************************************************
-SUB RenderCanvas (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB RenderCanvas (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
     CLS
     DrawGrid
@@ -71,7 +71,7 @@ END SUB
 '*   screenX (BYREF INTEGER): The resulting X pixel coordinate on screen.
 '*   screenY (BYREF INTEGER): The resulting Y pixel coordinate on screen.
 '******************************************************************************
-SUB CanvasToScreen (BYVAL canvasX AS INTEGER, BYVAL canvasY AS INTEGER, BYREF screenX AS INTEGER, BYREF screenY AS INTEGER)
+SUB CanvasToScreen (BYVAL canvasX AS INTEGER, BYVAL canvasY AS INTEGER, screenX AS INTEGER, screenY AS INTEGER)
     screenX = canvasX * GRID_X_STEP
     screenY = (canvasY * GRID_Y_STEP) + GRID_START_Y
 END SUB
@@ -99,7 +99,7 @@ END SUB
 '*   currentFileName (BYVAL STRING): The name of the current file.
 '*   spr (BYREF Sprite): The sprite metadata.
 '******************************************************************************
-SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, BYREF spr AS Sprite, BYVAL selectedTool AS INTEGER, BYREF toolIcons() AS STRING)
+SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, spr AS Sprite, BYVAL selectedTool AS INTEGER, toolIcons() AS STRING)
     DIM x AS INTEGER, y AS INTEGER, i AS INTEGER
     LOCATE 1, 70: PRINT currentFileName
     LOCATE 2, 1: COLOR 5
@@ -137,7 +137,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata object to update.
 '*   canvas() (BYREF INTEGER): The sprite data array to analyze.
 '******************************************************************************
-SUB UpdateSpriteBoundingBox (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB UpdateSpriteBoundingBox (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     spr.boundingBoxX1 = spr.width + 1
     spr.boundingBoxY1 = spr.height + 1
@@ -159,7 +159,7 @@ END SUB
 '* SUB: MovePixelsLeft
 '* Purpose: Shifts all pixels on the canvas one position to the left.
 '******************************************************************************
-SUB MovePixelsLeft (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB MovePixelsLeft (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = 0 TO spr.height
         FOR x = 0 TO spr.width - 1
@@ -175,7 +175,7 @@ END SUB
 '* SUB: MovePixelsRight
 '* Purpose: Shifts all pixels on the canvas one position to the right.
 '******************************************************************************
-SUB MovePixelsRight (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB MovePixelsRight (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = 0 TO spr.height
         FOR x = spr.width TO 1 STEP -1
@@ -191,7 +191,7 @@ END SUB
 '* SUB: MovePixelsUp
 '* Purpose: Shifts all pixels on the canvas one position up.
 '******************************************************************************
-SUB MovePixelsUp (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB MovePixelsUp (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR x = 0 TO spr.width
         FOR y = 0 TO spr.height - 1
@@ -207,7 +207,7 @@ END SUB
 '* SUB: MovePixelsDown
 '* Purpose: Shifts all pixels on the canvas one position down.
 '******************************************************************************
-SUB MovePixelsDown (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB MovePixelsDown (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR x = 0 TO spr.width
         FOR y = spr.height TO 1 STEP -1
@@ -223,7 +223,7 @@ END SUB
 '* SUB: DrawRectangle
 '* Purpose: Draws an unfilled rectangle on the canvas.
 '******************************************************************************
-SUB DrawRectangle (BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL color AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR x = x1 TO x2
         IF x >= 0 AND x <= spr.width AND y1 >= 0 AND y1 <= spr.height THEN canvas(x, y1) = color
@@ -241,7 +241,7 @@ END SUB
 '* SUB: DrawFilledRectangle
 '* Purpose: Draws a filled rectangle on the canvas.
 '******************************************************************************
-SUB DrawFilledRectangle (BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawFilledRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL color AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = y1 TO y2
         FOR x = x1 TO x2
@@ -256,7 +256,7 @@ END SUB
 '* SUB: DrawCircle
 '* Purpose: Draws an unfilled circle on the canvas.
 '******************************************************************************
-SUB DrawCircle (BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL color AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, d AS INTEGER
     x = 0
     y = radius
@@ -286,7 +286,7 @@ END SUB
 '* SUB: DrawFilledCircle
 '* Purpose: Draws a filled circle on the canvas.
 '******************************************************************************
-SUB DrawFilledCircle (BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawFilledCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL color AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, d AS INTEGER, i AS INTEGER
     x = 0
     y = radius

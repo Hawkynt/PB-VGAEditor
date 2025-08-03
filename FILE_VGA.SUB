@@ -10,7 +10,7 @@ $INCLUDE "SPRITE_OPS.SUB"
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
+SUB ReadVGAFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
     errorMessage = ""
     ON ERROR GOTO ReadVGAError
@@ -42,7 +42,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
+SUB WriteVGAFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
     errorMessage = ""
     ON ERROR GOTO WriteVGAError

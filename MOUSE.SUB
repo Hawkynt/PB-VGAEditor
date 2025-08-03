@@ -12,7 +12,7 @@ END TYPE
 '* Parameters:
 '*   mouse (BYREF MouseInfo): A structure to hold the mouse state.
 '******************************************************************************
-SUB GetMouseState (BYREF mouse AS MouseInfo)
+SUB GetMouseState (mouse AS MouseInfo)
     DIM AX AS INTEGER, BX AS INTEGER, CX AS INTEGER, DX AS INTEGER
     AX = 3
     InterruptWrapper &H33, AX, BX, CX, DX

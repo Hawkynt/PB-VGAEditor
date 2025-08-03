@@ -131,7 +131,7 @@ END SUB
 '* Parameters:
 '*   mouse (BYREF MouseInfo): The mouse state variable to initialize.
 '******************************************************************************
-SUB InitializeSystem (BYREF mouse AS MouseInfo)
+SUB InitializeSystem (mouse AS MouseInfo)
     InitializeMouse
     SCREEN 12
     mouse.x = 320
@@ -150,7 +150,7 @@ END SUB
 '*   isLineMode (BYVAL INTEGER): Flag for line drawing mode.
 '*   isSaved (BYREF INTEGER): Flag indicating if the file has unsaved changes.
 '******************************************************************************
-SUB HandleMouseInput (BYREF mouse AS MouseInfo, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYVAL drawingColor AS INTEGER, BYREF isLineMode AS INTEGER, BYREF isSaved AS INTEGER, BYVAL selectedTool AS INTEGER)
+SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BYVAL drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, BYVAL selectedTool AS INTEGER)
     DIM canvasX AS INTEGER, canvasY AS INTEGER, screenX AS INTEGER, screenY AS INTEGER, colorToUse AS INTEGER
     STATIC firstClickX AS INTEGER, firstClickY AS INTEGER, isFirstClick AS INTEGER
 
@@ -208,7 +208,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleKeyboardInput (BYREF drawingColor AS INTEGER, BYREF isLineMode AS INTEGER, BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF selectedTool AS INTEGER)
+SUB HandleKeyboardInput (drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER, selectedTool AS INTEGER)
     DIM inputKey$ AS STRING, keyCode AS INTEGER
     inputKey$ = INKEY$
     IF inputKey$ = "" THEN EXIT SUB
@@ -262,7 +262,7 @@ END FUNCTION
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleNewFile (BYREF isSaved AS INTEGER, BYREF isLineMode AS INTEGER, BYREF currentFileName AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB HandleNewFile (isSaved AS INTEGER, isLineMode AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER)
     IF CheckUnsavedChanges(isSaved) = FALSE THEN EXIT SUB
     isSaved = TRUE
     isLineMode = FALSE
@@ -277,7 +277,7 @@ END SUB
 '* Parameters:
 '*   color (BYREF INTEGER): The current drawing color variable to update.
 '******************************************************************************
-SUB HandleChangeColor (BYREF color AS INTEGER)
+SUB HandleChangeColor (color AS INTEGER)
     DIM selectedColorX AS INTEGER, selectedColorY AS INTEGER
     DIM currentKey AS STRING
     DIM oldColor AS INTEGER
@@ -327,7 +327,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleLoadFile (BYREF isSaved AS INTEGER, BYREF currentFileName AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB HandleLoadFile (isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER)
     DIM path$ AS STRING, fileName$ AS STRING, fileType$ AS STRING, fullPath$ AS STRING
     DIM errorMessage AS STRING
     IF CheckUnsavedChanges(isSaved) = FALSE THEN EXIT SUB
@@ -374,7 +374,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleSaveFile (BYREF currentFileName AS STRING, BYREF isSaved AS INTEGER, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB HandleSaveFile (currentFileName AS STRING, isSaved AS INTEGER, spr AS Sprite, canvas() AS INTEGER)
     DIM path$ AS STRING, fileName$ AS STRING, fileType$ AS STRING, fullPath$ AS STRING
     DIM errorMessage AS STRING
     COLOR 15
@@ -424,7 +424,7 @@ END SUB
 '* SUB: LoadToolIcons
 '* Purpose: Loads tool icon data from ICONS.SUB into an array.
 '******************************************************************************
-SUB LoadToolIcons (BYREF toolIcons() AS STRING)
+SUB LoadToolIcons (toolIcons() AS STRING)
     DIM i AS INTEGER, j AS INTEGER, iconRow AS STRING
     FOR i = 0 TO NUM_TOOLS - 1
         toolIcons(i) = ""
@@ -439,7 +439,7 @@ END SUB
 '* SUB: HandleToolSelection
 '* Purpose: Allows the user to select a drawing tool interactively.
 '******************************************************************************
-SUB HandleToolSelection (BYREF selectedTool AS INTEGER)
+SUB HandleToolSelection (selectedTool AS INTEGER)
     DIM currentKey AS STRING
     DIM oldTool AS INTEGER
     oldTool = selectedTool

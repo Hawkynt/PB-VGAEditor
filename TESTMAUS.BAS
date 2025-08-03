@@ -48,7 +48,7 @@ END
 '* SUB: CreateTestPattern
 '* Purpose: Creates a predictable pattern on the canvas for testing.
 '******************************************************************************
-SUB CreateTestPattern (BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB CreateTestPattern (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = 0 TO spr.height
         FOR x = 0 TO spr.width
@@ -61,7 +61,7 @@ END SUB
 '* SUB: TestFileFormat
 '* Purpose: Saves and loads a single file format, then compares the result.
 '******************************************************************************
-SUB TestFileFormat (BYVAL formatName AS STRING, BYREF spr AS Sprite, BYREF original() AS INTEGER, BYREF loaded() AS INTEGER)
+SUB TestFileFormat (BYVAL formatName AS STRING, spr AS Sprite, original() AS INTEGER, loaded() AS INTEGER)
     DIM fileName AS STRING
     DIM errorMessage AS STRING
     fileName = "TEST." + formatName
@@ -117,7 +117,7 @@ END SUB
 '* FUNCTION: CompareCanvases
 '* Purpose: Compares two canvases to see if they are identical.
 '******************************************************************************
-FUNCTION CompareCanvases (BYREF spr AS Sprite, BYREF canvas1() AS INTEGER, BYREF canvas2() AS INTEGER) AS INTEGER
+FUNCTION CompareCanvases (spr AS Sprite, canvas1() AS INTEGER, canvas2() AS INTEGER) AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
     CompareCanvases = 1 ' TRUE
     FOR y = 0 TO spr.height

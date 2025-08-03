@@ -10,7 +10,7 @@ $INCLUDE "SPRITE_OPS.SUB"
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
+SUB ReadBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER, lineData$ AS STRING, y AS INTEGER, x AS INTEGER, i AS INTEGER
     errorMessage = ""
     ON ERROR GOTO ReadBASError
@@ -51,7 +51,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
+SUB WriteBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
     DIM rowData$ AS STRING
     errorMessage = ""
