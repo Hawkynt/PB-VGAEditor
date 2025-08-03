@@ -10,8 +10,10 @@ $INCLUDE "SPRITE_OPS.SUB"
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB ReadBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM fileNum AS INTEGER, lineData$ AS STRING, y AS INTEGER, x AS INTEGER, i AS INTEGER
+    errorMessage = ""
+    ON ERROR GOTO ReadBASError
     fileNum = FREEFILE
     y = 0
     OPEN fullPath FOR INPUT AS #fileNum
@@ -35,6 +37,10 @@ SUB ReadBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
         END IF
     LOOP
     CLOSE #fileNum
+    EXIT SUB
+ReadBASError:
+    errorMessage = "Error reading BAS file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -45,9 +51,11 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB WriteBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
     DIM rowData$ AS STRING
+    errorMessage = ""
+    ON ERROR GOTO WriteBASError
     
     fileNum = FREEFILE
     OPEN fullPath FOR OUTPUT AS #fileNum
@@ -70,4 +78,8 @@ SUB WriteBASFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
 
     PRINT #fileNum, "DATA " + CHR$(34) + "99" + CHR$(34)
     CLOSE #fileNum
+    EXIT SUB
+WriteBASError:
+    errorMessage = "Error writing BAS file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB

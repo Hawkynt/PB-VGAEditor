@@ -63,38 +63,51 @@ END SUB
 '******************************************************************************
 SUB TestFileFormat (BYVAL formatName AS STRING, BYREF spr AS Sprite, BYREF original() AS INTEGER, BYREF loaded() AS INTEGER)
     DIM fileName AS STRING
+    DIM errorMessage AS STRING
     fileName = "TEST." + formatName
 
     PRINT "Testing " + formatName + " format...";
 
     ' --- Save the file ---
     SELECT CASE UCASE$(formatName)
-        CASE "VGA": WriteVGAFile fileName, spr, loaded()
-        CASE "BAS": WriteBASFile fileName, spr, loaded()
-        CASE "PCX": WritePCXFile fileName, spr, loaded()
-        CASE "BMP": WriteBMPFile fileName, spr, loaded()
-        CASE "ICO": WriteICOFile fileName, spr, loaded()
-        CASE "XPM": WriteXPMFile fileName, spr, loaded()
+        CASE "VGA": WriteVGAFile fileName, spr, original(), errorMessage
+        CASE "BAS": WriteBASFile fileName, spr, original(), errorMessage
+        CASE "PCX": WritePCXFile fileName, spr, original(), errorMessage
+        CASE "BMP": WriteBMPFile fileName, spr, original(), errorMessage
+        CASE "ICO": WriteICOFile fileName, spr, original(), errorMessage
+        CASE "XPM": WriteXPMFile fileName, spr, original(), errorMessage
     END SELECT
+
+    IF errorMessage <> "" THEN
+        PRINT "  [SAVE FAIL] " + errorMessage
+        KILL fileName
+        EXIT SUB
+    END IF
 
     ' --- Clear the loaded canvas ---
     ClearCanvas spr, loaded()
 
     ' --- Load the file back ---
     SELECT CASE UCASE$(formatName)
-        CASE "VGA": ReadVGAFile fileName, spr, loaded()
-        CASE "BAS": ReadBASFile fileName, spr, loaded()
-        CASE "PCX": ReadPCXFile fileName, spr, loaded()
-        CASE "BMP": ReadBMPFile fileName, spr, loaded()
-        CASE "ICO": ReadICOFile fileName, spr, loaded()
-        CASE "XPM": ReadXPMFile fileName, spr, loaded()
+        CASE "VGA": ReadVGAFile fileName, spr, loaded(), errorMessage
+        CASE "BAS": ReadBASFile fileName, spr, loaded(), errorMessage
+        CASE "PCX": ReadPCXFile fileName, spr, loaded(), errorMessage
+        CASE "BMP": ReadBMPFile fileName, spr, loaded(), errorMessage
+        CASE "ICO": ReadICOFile fileName, spr, loaded(), errorMessage
+        CASE "XPM": ReadXPMFile fileName, spr, loaded(), errorMessage
     END SELECT
+
+    IF errorMessage <> "" THEN
+        PRINT "  [LOAD FAIL] " + errorMessage
+        KILL fileName
+        EXIT SUB
+    END IF
 
     ' --- Compare the canvases ---
     IF CompareCanvases(spr, original(), loaded()) THEN
         PRINT "  [PASS]"
     ELSE
-        PRINT "  [FAIL]"
+        PRINT "  [COMPARE FAIL]"
     END IF
 
     KILL fileName

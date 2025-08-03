@@ -42,7 +42,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB WriteICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM idir AS ICONDIR
     DIM ide AS ICONDIRENTRY
     DIM bmih AS BITMAPINFOHEADER
@@ -52,6 +52,8 @@ SUB WriteICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
     DIM xorMaskRowSize AS INTEGER, andMaskRowSize AS INTEGER
     DIM xorMaskSize AS LONG, andMaskSize AS LONG
     DIM vgaPalette(0 TO 15) AS LONG
+    errorMessage = ""
+    ON ERROR GOTO WriteICOError
 
     ' Check if there is anything to save
     IF spr.boundingBoxX2 = -1 THEN EXIT SUB
@@ -141,6 +143,10 @@ SUB WriteICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
     NEXT y
 
     CLOSE #fileNum
+    EXIT SUB
+WriteICOError:
+    errorMessage = "Error writing ICO file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -151,7 +157,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM idir AS ICONDIR
     DIM ide(255) AS ICONDIRENTRY
     DIM bmih AS BITMAPINFOHEADER
@@ -163,6 +169,8 @@ SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     DIM xorMaskRowSize AS INTEGER, andMaskRowSize AS INTEGER
     DIM byteVal AS STRING * 1, p1 AS INTEGER, p2 AS INTEGER
     DIM andByte AS STRING * 1, bit AS INTEGER
+    errorMessage = ""
+    ON ERROR GOTO ReadICOError
 
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
@@ -171,9 +179,8 @@ SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     GET #fileNum, , idir
 
     IF idir.idType <> 1 THEN
+        errorMessage = "Not a valid ICO file."
         CLOSE #fileNum
-        BEEP: LOCATE 1, 1: PRINT "Error: Not a valid ICO file."
-        SLEEP 2
         EXIT SUB
     END IF
 
@@ -197,9 +204,8 @@ SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     NEXT i
 
     IF bestEntry = -1 THEN
+        errorMessage = "No suitable 16-color icon found in file."
         CLOSE #fileNum
-        BEEP: LOCATE 1, 1: PRINT "Error: No suitable 16-color icon found in file."
-        SLEEP 2
         EXIT SUB
     END IF
 
@@ -246,4 +252,8 @@ SUB ReadICOFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     NEXT y
 
     CLOSE #fileNum
+    EXIT SUB
+ReadICOError:
+    errorMessage = "Error reading ICO file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB

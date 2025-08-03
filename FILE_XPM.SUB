@@ -11,12 +11,14 @@ $INCLUDE "SPRITE_OPS.SUB"
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB WriteXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
     DIM width AS INTEGER, height AS INTEGER
     DIM colorChars(0 TO 15) AS STRING
     DIM colorMap(0 TO 15) AS STRING
+    errorMessage = ""
+    ON ERROR GOTO WriteXPMError
 
     ' Check if there is anything to save
     IF spr.boundingBoxX2 = -1 THEN EXIT SUB
@@ -67,6 +69,10 @@ SUB WriteXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
 
     PRINT #fileNum, "};"
     CLOSE #fileNum
+    EXIT SUB
+WriteXPMError:
+    errorMessage = "Error writing XPM file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -77,20 +83,26 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB ReadXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM lineData AS STRING, temp AS STRING
     DIM width AS INTEGER, height AS INTEGER, numColors AS INTEGER, charsPerPixel AS INTEGER
     DIM colorMap(0 TO 255) AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
     DIM startX AS INTEGER, startY AS INTEGER
+    errorMessage = ""
+    ON ERROR GOTO ReadXPMError
 
     fileNum = FREEFILE
     OPEN fullPath FOR INPUT AS #fileNum
 
     ' --- Read Header ---
     LINE INPUT #fileNum, lineData
-    IF lineData <> "! XPM" THEN GOTO ReadError
+    IF lineData <> "! XPM" THEN
+        errorMessage = "Invalid XPM header."
+        CLOSE #fileNum
+        EXIT SUB
+    END IF
     LINE INPUT #fileNum, lineData ' Skip static char line
 
     ' --- Read Dimensions ---
@@ -104,7 +116,11 @@ SUB ReadXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     temp = LTRIM$(RTRIM$(MID$(temp, INSTR(temp, " ") + 1)))
     charsPerPixel = VAL(temp)
 
-    IF charsPerPixel <> 1 OR numColors > 256 THEN GOTO ReadError
+    IF charsPerPixel <> 1 OR numColors > 256 THEN
+        errorMessage = "Unsupported XPM format (chars per pixel or too many colors)."
+        CLOSE #fileNum
+        EXIT SUB
+    END IF
 
     ' --- Read Color Map ---
     FOR i = 0 TO numColors - 1
@@ -131,9 +147,7 @@ SUB ReadXPMFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
 
     CLOSE #fileNum
     EXIT SUB
-
-ReadError:
-    CLOSE #fileNum
-    BEEP: LOCATE 1, 1: PRINT "Error: Invalid or unsupported XPM file."
-    SLEEP 2
+ReadXPMError:
+    errorMessage = "Error reading XPM file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB

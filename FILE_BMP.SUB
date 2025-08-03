@@ -33,7 +33,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB WriteBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
@@ -42,6 +42,8 @@ SUB WriteBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
     DIM rowPadding AS INTEGER, rowSize AS INTEGER
     DIM pixelDataSize AS LONG
     DIM vgaPalette(0 TO 15) AS LONG
+    errorMessage = ""
+    ON ERROR GOTO WriteBMPError
 
     ' Check if there is anything to save
     IF spr.boundingBoxX2 = -1 THEN EXIT SUB
@@ -108,6 +110,10 @@ SUB WriteBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
     NEXT y
 
     CLOSE #fileNum
+    EXIT SUB
+WriteBMPError:
+    errorMessage = "Error writing BMP file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -118,7 +124,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB ReadBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
@@ -127,6 +133,8 @@ SUB ReadBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     DIM startX AS INTEGER, startY AS INTEGER
     DIM rowPadding AS INTEGER, rowSize AS INTEGER
     DIM byteVal AS STRING * 1, p1 AS INTEGER, p2 AS INTEGER
+    errorMessage = ""
+    ON ERROR GOTO ReadBMPError
 
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
@@ -137,9 +145,8 @@ SUB ReadBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
 
     ' --- Validate Header ---
     IF bmpH.bfType <> "BM" OR bmpIH.biBitCount <> 4 OR bmpIH.biCompression <> 0 THEN
+        errorMessage = "Not a valid 16-color BMP file."
         CLOSE #fileNum
-        BEEP: LOCATE 1, 1: PRINT "Error: Not a valid 16-color BMP file."
-        SLEEP 2
         EXIT SUB
     END IF
 
@@ -172,4 +179,8 @@ SUB ReadBMPFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     NEXT y
 
     CLOSE #fileNum
+    EXIT SUB
+ReadBMPError:
+    errorMessage = "Error reading BMP file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB

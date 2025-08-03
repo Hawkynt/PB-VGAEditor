@@ -10,16 +10,28 @@ $INCLUDE "SPRITE_OPS.SUB"
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB ReadVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
+    errorMessage = ""
+    ON ERROR GOTO ReadVGAError
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
+    IF LOF(fileNum) < (spr.width + 1) * (spr.height + 1) THEN
+        errorMessage = "VGA file is too small or corrupted."
+        CLOSE #fileNum
+        EXIT SUB
+    END IF
     FOR y = 0 TO spr.height
         FOR x = 0 TO spr.width
             canvas(x, y) = ASC(INPUT$(1, #fileNum))
         NEXT x
     NEXT y
     CLOSE #fileNum
+    UpdateSpriteBoundingBox spr, canvas()
+    EXIT SUB
+ReadVGAError:
+    errorMessage = "Error reading VGA file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -30,8 +42,10 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB WriteVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
+    errorMessage = ""
+    ON ERROR GOTO WriteVGAError
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
     FOR y = 0 TO spr.height
@@ -40,4 +54,8 @@ SUB WriteVGAFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
         NEXT x
     NEXT y
     CLOSE #fileNum
+    EXIT SUB
+WriteVGAError:
+    errorMessage = "Error writing VGA file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB

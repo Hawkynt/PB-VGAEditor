@@ -32,7 +32,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WritePCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB WritePCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
@@ -40,6 +40,8 @@ SUB WritePCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
     DIM runCount AS INTEGER
     DIM runValue AS INTEGER
     DIM vgaPalette(0 TO 15) AS STRING * 3
+    errorMessage = ""
+    ON ERROR GOTO WritePCXError
 
     ' Check if there is anything to save
     IF spr.boundingBoxX2 = -1 THEN EXIT SUB
@@ -108,6 +110,10 @@ SUB WritePCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() 
     PUT #fileNum, , STRING$(240 * 3, 0)
 
     CLOSE #fileNum
+    EXIT SUB
+WritePCXError:
+    errorMessage = "Error writing PCX file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -118,7 +124,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadPCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER)
+SUB ReadPCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() AS INTEGER, BYREF errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
@@ -126,6 +132,8 @@ SUB ReadPCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     DIM startX AS INTEGER, startY AS INTEGER
     DIM runCount AS INTEGER, runValue AS INTEGER
     DIM dataByte AS STRING * 1
+    errorMessage = ""
+    ON ERROR GOTO ReadPCXError
 
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
@@ -135,9 +143,8 @@ SUB ReadPCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
 
     ' --- Validate Header ---
     IF ASC(header.Manufacturer) <> 10 OR ASC(header.Encoding) <> 1 OR ASC(header.BitsPerPixel) <> 8 THEN
+        errorMessage = "Not a valid 256-color PCX file."
         CLOSE #fileNum
-        BEEP: LOCATE 1, 1: PRINT "Error: Not a valid 256-color PCX file."
-        SLEEP 2
         EXIT SUB
     END IF
 
@@ -171,4 +178,8 @@ SUB ReadPCXFile (BYVAL fullPath AS STRING, BYREF spr AS Sprite, BYREF canvas() A
     NEXT y
 
     CLOSE #fileNum
+    EXIT SUB
+ReadPCXError:
+    errorMessage = "Error reading PCX file: " + ERROR$
+    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
