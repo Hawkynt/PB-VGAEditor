@@ -15,7 +15,7 @@ SUB ShowIntro ()
     CLS
     PRINT: PRINT: PRINT
     COLOR 2: PRINT SPC(14); "≤≤≤≤≤≤ ≤≤  ≤≤  ≤≤≤≤≤≤        "; : COLOR 1: PRINT "≤≤  ≤≤   ±±±±    ∞∞  "
-    COLOR 2: PRINT SPC(14); " ≤≤≤≤  ≤≤  ≤≤  ≤≤            "; : COLOR 1: PRINT "≤≤  ≤≤  ±±  ±±  ∞∞∞∞ "
+    COLOR 2: PRINT SPC(14); "≤ ≤≤ ≤ ≤≤  ≤≤  ≤≤            "; : COLOR 1: PRINT "≤≤  ≤≤  ±±  ±±  ∞∞∞∞ "
     COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤ ≤          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±      ∞∞  ∞∞"
     COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤≤≤≤≤  ≤≤≤≤          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±      ∞∞  ∞∞"
     COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤ ≤          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±  ±±  ∞∞∞∞∞∞"
@@ -26,7 +26,7 @@ SUB ShowIntro ()
     NEXT
     COLOR 4
     PRINT , "     €€€€€€ €€€€€   €€€€€€ €€€€€€   €€€   €€€€€€ "
-    PRINT , "      €€     €€ €€    €€    €€€€   €€ €€   €€  €€"
+    PRINT , "      €€     €€ €€    €€   € €€ €  €€ €€   €€  €€"
     PRINT , "      €€ €   €€  €€   €€     €€   €€   €€  €€  €€"
     PRINT , "      €€€€   €€  €€   €€     €€   €€   €€  €€€€€ "
     PRINT , "      €€ €   €€  €€   €€     €€   €€   €€  €€ €€ "
