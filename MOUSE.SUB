@@ -13,7 +13,10 @@ END TYPE
 '*   mouse (BYREF MouseInfo): A structure to hold the mouse state.
 '******************************************************************************
 SUB GetMouseState (mouse AS MouseInfo)
-    DIM AX AS INTEGER, BX AS INTEGER, CX AS INTEGER, DX AS INTEGER
+    DIM AX AS INTEGER
+    DIM BX AS INTEGER
+    DIM CX AS INTEGER
+    DIM DX AS INTEGER
     AX = 3
     InterruptWrapper &H33, AX, BX, CX, DX
     mouse.button = BX
@@ -43,7 +46,10 @@ END FUNCTION
 '*   visible (BYVAL INTEGER): TRUE to show, FALSE to hide.
 '******************************************************************************
 SUB SetMouseVisibility (BYVAL visible AS INTEGER)
-    DIM AX AS INTEGER, BX AS INTEGER, CX AS INTEGER, DX AS INTEGER
+    DIM AX AS INTEGER
+    DIM BX AS INTEGER
+    DIM CX AS INTEGER
+    DIM DX AS INTEGER
     IF visible = 0 THEN AX = 2 ELSE AX = 1
     InterruptWrapper &H33, AX, BX, CX, DX
 END SUB
@@ -54,7 +60,10 @@ END SUB
 '* Parameters: None
 '******************************************************************************
 SUB InitializeMouse ()
-    DIM AX AS INTEGER, BX AS INTEGER, CX AS INTEGER, DX AS INTEGER
+    DIM AX AS INTEGER
+    DIM BX AS INTEGER
+    DIM CX AS INTEGER
+    DIM DX AS INTEGER
     AX = 0
     InterruptWrapper &H33, AX, BX, CX, DX
     AX = 1
@@ -69,7 +78,10 @@ END SUB
 '*   y (BYVAL INTEGER): The new Y coordinate.
 '******************************************************************************
 SUB SetMousePosition (BYVAL x AS INTEGER, BYVAL y AS INTEGER)
-    DIM AX AS INTEGER, BX AS INTEGER, CX AS INTEGER, DX AS INTEGER
+    DIM AX AS INTEGER
+    DIM BX AS INTEGER
+    DIM CX AS INTEGER
+    DIM DX AS INTEGER
     AX = 4
     CX = x
     DX = y
@@ -82,7 +94,10 @@ END SUB
 '* Parameters: None
 '******************************************************************************
 SUB WaitForInput ()
-    DIM mouse AS MouseInfo, startX AS INTEGER, startY AS INTEGER, startButton AS INTEGER
+    DIM mouse AS MouseInfo
+    DIM startX AS INTEGER
+    DIM startY AS INTEGER
+    DIM startButton AS INTEGER
     GetMouseState mouse
     startX = mouse.x: startY = mouse.y: startButton = mouse.button
     DO

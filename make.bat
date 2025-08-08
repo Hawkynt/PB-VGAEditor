@@ -1,0 +1,1 @@
+PBC.EXE -Fnpx -G386 -OZF+ -Ce VGAMAUS.BAS

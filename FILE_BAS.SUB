@@ -1,7 +1,5 @@
 ' .BAS File Format Module
 
-$INCLUDE "SPRITE.SUB"
-
 '******************************************************************************
 '* SUB: ReadBASFile
 '* Purpose: Reads a .BAS sprite file into the canvas.
@@ -11,36 +9,35 @@ $INCLUDE "SPRITE.SUB"
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
 SUB ReadBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
-    DIM fileNum AS INTEGER, lineData$ AS STRING, y AS INTEGER, x AS INTEGER, i AS INTEGER
+    DIM fileNum AS INTEGER
+    DIM lineData AS STRING
+    DIM y AS INTEGER
+    DIM x AS INTEGER
+    DIM i AS INTEGER
     errorMessage = ""
-    ON ERROR GOTO ReadBASError
     fileNum = FREEFILE
     y = 0
     OPEN fullPath FOR INPUT AS #fileNum
     DO WHILE NOT EOF(fileNum)
-        LINE INPUT #fileNum, lineData$
-        IF LEFT$(UCASE$(lineData$), 5) = "DATA " THEN
-            lineData$ = MID$(lineData$, 7, LEN(lineData$) - 8)
-            IF lineData$ = "99" THEN EXIT DO
-            FOR i = 1 TO LEN(lineData$) STEP 2
+        LINE INPUT #fileNum, lineData
+        IF LEFT$(UCASE$(lineData), 5) = "DATA " THEN
+            lineData = MID$(lineData, 7, LEN(lineData) - 8)
+            IF lineData = "99" THEN EXIT DO
+            FOR i = 1 TO LEN(lineData) STEP 2
                 x = (i - 1) / 2
-                IF x <= spr.width THEN
-                    IF MID$(lineData$, i, 2) = "hg" THEN
+                IF x <= spr.spriteWidth THEN
+                    IF MID$(lineData, i, 2) = "hg" THEN
                         canvas(x, y) = 0
                     ELSE
-                        canvas(x, y) = VAL(MID$(lineData$, i, 2))
+                        canvas(x, y) = VAL(MID$(lineData, i, 2))
                     END IF
                 END IF
             NEXT i
             y = y + 1
-            IF y > spr.height THEN EXIT DO
+            IF y > spr.spriteHeight THEN EXIT DO
         END IF
     LOOP
     CLOSE #fileNum
-    EXIT SUB
-ReadBASError:
-    errorMessage = "Error reading BAS file: " + ERROR$
-    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -52,10 +49,11 @@ END SUB
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
 SUB WriteBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
-    DIM fileNum AS INTEGER, x AS INTEGER, y AS INTEGER
-    DIM rowData$ AS STRING
+    DIM fileNum AS INTEGER
+    DIM x AS INTEGER
+    DIM y AS INTEGER
+    DIM rowData AS STRING
     errorMessage = ""
-    ON ERROR GOTO WriteBASError
     
     fileNum = FREEFILE
     OPEN fullPath FOR OUTPUT AS #fileNum
@@ -64,22 +62,18 @@ SUB WriteBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
     
     IF spr.boundingBoxX2 <> -1 THEN ' Check if there is anything to save
         FOR y = spr.boundingBoxY1 TO spr.boundingBoxY2
-            rowData$ = ""
+            rowData = ""
             FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2
                 IF canvas(x, y) = 0 THEN
-                    rowData$ = rowData$ + "hg"
+                    rowData = rowData + "hg"
                 ELSE
-                    rowData$ = rowData$ + RIGHT$("00" + LTRIM$(STR$(canvas(x, y))), 2)
+                    rowData = rowData + RIGHT$("00" + LTRIM$(STR$(canvas(x, y))), 2)
                 END IF
             NEXT x
-            PRINT #fileNum, "DATA " + CHR$(34) + rowData$ + CHR$(34)
+            PRINT #fileNum, "DATA " + CHR$(34) + rowData + CHR$(34)
         NEXT y
     END IF
 
     PRINT #fileNum, "DATA " + CHR$(34) + "99" + CHR$(34)
     CLOSE #fileNum
-    EXIT SUB
-WriteBASError:
-    errorMessage = "Error writing BAS file: " + ERROR$
-    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB

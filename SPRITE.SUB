@@ -1,13 +1,5 @@
 ' Core Sprite Operations Module
 
-TYPE Sprite
-    width AS INTEGER
-    height AS INTEGER
-    boundingBoxX1 AS INTEGER
-    boundingBoxY1 AS INTEGER
-    boundingBoxX2 AS INTEGER
-    boundingBoxY2 AS INTEGER
-END TYPE
 
 '******************************************************************************
 '* SUB: InitializeSprite
@@ -17,9 +9,9 @@ END TYPE
 '*   canvas() (BYREF INTEGER): The integer array to be dimensioned.
 '******************************************************************************
 SUB InitializeSprite (spr AS Sprite, canvas() AS INTEGER)
-    spr.width = (GRID_X_MAX / GRID_X_STEP)
-    spr.height = (GRID_Y_MAX - GRID_START_Y) / GRID_Y_STEP
-    REDIM canvas(0 TO spr.width, 0 TO spr.height) AS INTEGER
+    spr.spriteWidth = (%GRID_X_MAX / %GRID_X_STEP)
+    spr.spriteHeight = (%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP
+    REDIM canvas(0 TO spr.spriteWidth, 0 TO spr.spriteHeight) AS INTEGER
     ClearCanvas spr, canvas()
 END SUB
 
@@ -32,8 +24,8 @@ END SUB
 '******************************************************************************
 SUB ClearCanvas (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
-    FOR y = 0 TO spr.height
-        FOR x = 0 TO spr.width
+    FOR y = 0 TO spr.spriteHeight
+        FOR x = 0 TO spr.spriteWidth
             canvas(x, y) = 0
         NEXT x
     NEXT y
@@ -51,12 +43,12 @@ SUB RenderCanvas (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
     CLS
     DrawGrid
-    FOR y = 0 TO spr.height
-        FOR x = 0 TO spr.width
+    FOR y = 0 TO spr.spriteHeight
+        FOR x = 0 TO spr.spriteWidth
             IF canvas(x, y) <> 0 THEN
                 CanvasToScreen x, y, screenX, screenY
-                LINE (screenX, screenY)-STEP(GRID_X_STEP, GRID_Y_STEP), canvas(x, y), BF
-                PSET (x + PREVIEW_X + 3, y + PREVIEW_Y), canvas(x, y)
+                LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), canvas(x, y), BF
+                PSET (x + %PREVIEW_X + 3, y + %PREVIEW_Y), canvas(x, y)
             END IF
         NEXT x
     NEXT y
@@ -72,8 +64,8 @@ END SUB
 '*   screenY (BYREF INTEGER): The resulting Y pixel coordinate on screen.
 '******************************************************************************
 SUB CanvasToScreen (BYVAL canvasX AS INTEGER, BYVAL canvasY AS INTEGER, screenX AS INTEGER, screenY AS INTEGER)
-    screenX = canvasX * GRID_X_STEP
-    screenY = (canvasY * GRID_Y_STEP) + GRID_START_Y
+    screenX = canvasX * %GRID_X_STEP
+    screenY = (canvasY * %GRID_Y_STEP) + %GRID_START_Y
 END SUB
 
 '******************************************************************************
@@ -83,11 +75,11 @@ END SUB
 '******************************************************************************
 SUB DrawGrid ()
     DIM x AS INTEGER, y AS INTEGER
-    FOR x = 0 TO GRID_X_MAX STEP GRID_X_STEP
-        LINE (x, GRID_START_Y)-(x, GRID_Y_MAX), GRID_COLOR
+    FOR x = 0 TO %GRID_X_MAX STEP %GRID_X_STEP
+        LINE (x, %GRID_START_Y)-(x, %GRID_Y_MAX), GRID_COLOR
     NEXT x
-    FOR y = GRID_START_Y TO GRID_Y_MAX STEP GRID_Y_STEP
-        LINE (0, y)-(GRID_X_MAX, y), GRID_COLOR
+    FOR y = %GRID_START_Y TO %GRID_Y_MAX STEP %GRID_Y_STEP
+        LINE (0, y)-(%GRID_X_MAX, y), GRID_COLOR
     NEXT y
 END SUB
 
@@ -100,13 +92,13 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '******************************************************************************
 SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, spr AS Sprite, BYVAL selectedTool AS INTEGER, toolIcons() AS STRING)
-    DIM x AS INTEGER, y AS INTEGER, i AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER, i AS INTEGER, iconX AS INTEGER, iconY AS INTEGER
     LOCATE 1, 70: PRINT currentFileName
     LOCATE 2, 1: COLOR 5
     PRINT "ESC=Exit  N=New  L=Load  S=Save  INS=Line-Mode  T=Tools"
     
     ' Draw current drawing color preview
-    LINE (15, 33)-STEP(GRID_X_STEP, GRID_Y_STEP), drawingColor, BF
+    LINE (15, 33)-STEP(%GRID_X_STEP, %GRID_Y_STEP), drawingColor, BF
     LOCATE 3, 6: COLOR drawingColor: PRINT "Color"
 
     ' Draw color palette grid
@@ -119,13 +111,12 @@ SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, spr 
     LOCATE 3, 14: COLOR 1: PRINT "C=Color"
     LOCATE 3, 28: COLOR 2: PRINT "L-Mouse=Draw"
     LOCATE 3, 45: COLOR 4: PRINT "R-Mouse=Erase"
-    LINE (PREVIEW_X, PREVIEW_Y)-STEP(spr.width + 5, spr.height + 9), 1, B
+    LINE (%PREVIEW_X, %PREVIEW_Y)-STEP(spr.spriteWidth + 5, spr.spriteHeight + 9), 1, B
 
     ' Draw tool icons
     FOR i = 0 TO NUM_TOOLS - 1
-        DIM iconX AS INTEGER, iconY AS INTEGER
-        iconX = PREVIEW_X + (i MOD 2) * 10
-        iconY = PREVIEW_Y + spr.height + 10 + (i \ 2) * 10
+        iconX = %PREVIEW_X + (i MOD 2) * 10
+        iconY = %PREVIEW_Y + spr.spriteHeight + 10 + (i \ 2) * 10
         DrawIcon iconX, iconY, toolIcons(i), (i = selectedTool)
     NEXT i
 END SUB
@@ -139,12 +130,12 @@ END SUB
 '******************************************************************************
 SUB UpdateSpriteBoundingBox (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
-    spr.boundingBoxX1 = spr.width + 1
-    spr.boundingBoxY1 = spr.height + 1
+    spr.boundingBoxX1 = spr.spriteWidth + 1
+    spr.boundingBoxY1 = spr.spriteHeight + 1
     spr.boundingBoxX2 = -1
     spr.boundingBoxY2 = -1
-    FOR y = 0 TO spr.height
-        FOR x = 0 TO spr.width
+    FOR y = 0 TO spr.spriteHeight
+        FOR x = 0 TO spr.spriteWidth
             IF canvas(x, y) <> 0 THEN
                 IF x < spr.boundingBoxX1 THEN spr.boundingBoxX1 = x
                 IF y < spr.boundingBoxY1 THEN spr.boundingBoxY1 = y
@@ -161,11 +152,11 @@ END SUB
 '******************************************************************************
 SUB MovePixelsLeft (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
-    FOR y = 0 TO spr.height
-        FOR x = 0 TO spr.width - 1
+    FOR y = 0 TO spr.spriteHeight
+        FOR x = 0 TO spr.spriteWidth - 1
             canvas(x, y) = canvas(x + 1, y)
         NEXT x
-        canvas(spr.width, y) = 0 ' Clear rightmost column
+        canvas(spr.spriteWidth, y) = 0 ' Clear rightmost column
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
     RenderCanvas spr, canvas()
@@ -177,8 +168,8 @@ END SUB
 '******************************************************************************
 SUB MovePixelsRight (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
-    FOR y = 0 TO spr.height
-        FOR x = spr.width TO 1 STEP -1
+    FOR y = 0 TO spr.spriteHeight
+        FOR x = spr.spriteWidth TO 1 STEP -1
             canvas(x, y) = canvas(x - 1, y)
         NEXT x
         canvas(0, y) = 0 ' Clear leftmost column
@@ -193,11 +184,11 @@ END SUB
 '******************************************************************************
 SUB MovePixelsUp (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
-    FOR x = 0 TO spr.width
-        FOR y = 0 TO spr.height - 1
+    FOR x = 0 TO spr.spriteWidth
+        FOR y = 0 TO spr.spriteHeight - 1
             canvas(x, y) = canvas(x, y + 1)
         NEXT y
-        canvas(x, spr.height) = 0 ' Clear bottommost row
+        canvas(x, spr.spriteHeight) = 0 ' Clear bottommost row
     NEXT x
     UpdateSpriteBoundingBox spr, canvas()
     RenderCanvas spr, canvas()
@@ -209,8 +200,8 @@ END SUB
 '******************************************************************************
 SUB MovePixelsDown (spr AS Sprite, canvas() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
-    FOR x = 0 TO spr.width
-        FOR y = spr.height TO 1 STEP -1
+    FOR x = 0 TO spr.spriteWidth
+        FOR y = spr.spriteHeight TO 1 STEP -1
             canvas(x, y) = canvas(x, y - 1)
         NEXT y
         canvas(x, 0) = 0 ' Clear topmost row
@@ -223,15 +214,15 @@ END SUB
 '* SUB: DrawRectangle
 '* Purpose: Draws an unfilled rectangle on the canvas.
 '******************************************************************************
-SUB DrawRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR x = x1 TO x2
-        IF x >= 0 AND x <= spr.width AND y1 >= 0 AND y1 <= spr.height THEN canvas(x, y1) = color
-        IF x >= 0 AND x <= spr.width AND y2 >= 0 AND y2 <= spr.height THEN canvas(x, y2) = color
+        IF x >= 0 AND x <= spr.spriteWidth AND y1 >= 0 AND y1 <= spr.spriteHeight THEN canvas(x, y1) = drawColor
+        IF x >= 0 AND x <= spr.spriteWidth AND y2 >= 0 AND y2 <= spr.spriteHeight THEN canvas(x, y2) = drawColor
     NEXT x
     FOR y = y1 TO y2
-        IF x1 >= 0 AND x1 <= spr.width AND y >= 0 AND y <= spr.height THEN canvas(x1, y) = color
-        IF x2 >= 0 AND x2 <= spr.width AND y >= 0 AND y <= spr.height THEN canvas(x2, y) = color
+        IF x1 >= 0 AND x1 <= spr.spriteWidth AND y >= 0 AND y <= spr.spriteHeight THEN canvas(x1, y) = drawColor
+        IF x2 >= 0 AND x2 <= spr.spriteWidth AND y >= 0 AND y <= spr.spriteHeight THEN canvas(x2, y) = drawColor
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
     RenderCanvas spr, canvas()
@@ -241,11 +232,11 @@ END SUB
 '* SUB: DrawFilledRectangle
 '* Purpose: Draws a filled rectangle on the canvas.
 '******************************************************************************
-SUB DrawFilledRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawFilledRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = y1 TO y2
         FOR x = x1 TO x2
-            IF x >= 0 AND x <= spr.width AND y >= 0 AND y <= spr.height THEN canvas(x, y) = color
+            IF x >= 0 AND x <= spr.spriteWidth AND y >= 0 AND y <= spr.spriteHeight THEN canvas(x, y) = drawColor
         NEXT x
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
@@ -256,20 +247,20 @@ END SUB
 '* SUB: DrawCircle
 '* Purpose: Draws an unfilled circle on the canvas.
 '******************************************************************************
-SUB DrawCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, d AS INTEGER
     x = 0
     y = radius
     d = 3 - 2 * radius
     DO WHILE y >= x
-        IF (centerX + x) >= 0 AND (centerX + x) <= spr.width AND (centerY + y) >= 0 AND (centerY + y) <= spr.height THEN canvas(centerX + x, centerY + y) = color
-        IF (centerX - x) >= 0 AND (centerX - x) <= spr.width AND (centerY + y) >= 0 AND (centerY + y) <= spr.height THEN canvas(centerX - x, centerY + y) = color
-        IF (centerX + x) >= 0 AND (centerX + x) <= spr.width AND (centerY - y) >= 0 AND (centerY - y) <= spr.height THEN canvas(centerX + x, centerY - y) = color
-        IF (centerX - x) >= 0 AND (centerX - x) <= spr.width AND (centerY - y) >= 0 AND (centerY - y) <= spr.height THEN canvas(centerX - x, centerY - y) = color
-        IF (centerX + y) >= 0 AND (centerX + y) <= spr.width AND (centerY + x) >= 0 AND (centerY + x) <= spr.height THEN canvas(centerX + y, centerY + x) = color
-        IF (centerX - y) >= 0 AND (centerX - y) <= spr.width AND (centerY + x) >= 0 AND (centerY + x) <= spr.height THEN canvas(centerX - y, centerY + x) = color
-        IF (centerX + y) >= 0 AND (centerX + y) <= spr.width AND (centerY - x) >= 0 AND (centerY - x) <= spr.height THEN canvas(centerX + y, centerY - x) = color
-        IF (centerX - y) >= 0 AND (centerX - y) <= spr.width AND (centerY - x) >= 0 AND (centerY - x) <= spr.height THEN canvas(centerX - y, centerY - x) = color
+        IF (centerX + x) >= 0 AND (centerX + x) <= spr.spriteWidth AND (centerY + y) >= 0 AND (centerY + y) <= spr.spriteHeight THEN canvas(centerX + x, centerY + y) = drawColor
+        IF (centerX - x) >= 0 AND (centerX - x) <= spr.spriteWidth AND (centerY + y) >= 0 AND (centerY + y) <= spr.spriteHeight THEN canvas(centerX - x, centerY + y) = drawColor
+        IF (centerX + x) >= 0 AND (centerX + x) <= spr.spriteWidth AND (centerY - y) >= 0 AND (centerY - y) <= spr.spriteHeight THEN canvas(centerX + x, centerY - y) = drawColor
+        IF (centerX - x) >= 0 AND (centerX - x) <= spr.spriteWidth AND (centerY - y) >= 0 AND (centerY - y) <= spr.spriteHeight THEN canvas(centerX - x, centerY - y) = drawColor
+        IF (centerX + y) >= 0 AND (centerX + y) <= spr.spriteWidth AND (centerY + x) >= 0 AND (centerY + x) <= spr.spriteHeight THEN canvas(centerX + y, centerY + x) = drawColor
+        IF (centerX - y) >= 0 AND (centerX - y) <= spr.spriteWidth AND (centerY + x) >= 0 AND (centerY + x) <= spr.spriteHeight THEN canvas(centerX - y, centerY + x) = drawColor
+        IF (centerX + y) >= 0 AND (centerX + y) <= spr.spriteWidth AND (centerY - x) >= 0 AND (centerY - x) <= spr.spriteHeight THEN canvas(centerX + y, centerY - x) = drawColor
+        IF (centerX - y) >= 0 AND (centerX - y) <= spr.spriteWidth AND (centerY - x) >= 0 AND (centerY - x) <= spr.spriteHeight THEN canvas(centerX - y, centerY - x) = drawColor
         IF d < 0 THEN
             d = d + 4 * x + 6
         ELSE
@@ -286,19 +277,19 @@ END SUB
 '* SUB: DrawFilledCircle
 '* Purpose: Draws a filled circle on the canvas.
 '******************************************************************************
-SUB DrawFilledCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL color AS INTEGER)
+SUB DrawFilledCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, d AS INTEGER, i AS INTEGER
     x = 0
     y = radius
     d = 3 - 2 * radius
     DO WHILE y >= x
         FOR i = centerX - y TO centerX + y
-            IF i >= 0 AND i <= spr.width AND (centerY + x) >= 0 AND (centerY + x) <= spr.height THEN canvas(i, centerY + x) = color
-            IF i >= 0 AND i <= spr.width AND (centerY - x) >= 0 AND (centerY - x) <= spr.height THEN canvas(i, centerY - x) = color
+            IF i >= 0 AND i <= spr.spriteWidth AND (centerY + x) >= 0 AND (centerY + x) <= spr.spriteHeight THEN canvas(i, centerY + x) = drawColor
+            IF i >= 0 AND i <= spr.spriteWidth AND (centerY - x) >= 0 AND (centerY - x) <= spr.spriteHeight THEN canvas(i, centerY - x) = drawColor
         NEXT i
         FOR i = centerX - x TO centerX + x
-            IF i >= 0 AND i <= spr.width AND (centerY + y) >= 0 AND (centerY + y) <= spr.height THEN canvas(i, centerY + y) = color
-            IF i >= 0 AND i <= spr.width AND (centerY - y) >= 0 AND (centerY - y) <= spr.height THEN canvas(i, centerY - y) = color
+            IF i >= 0 AND i <= spr.spriteWidth AND (centerY + y) >= 0 AND (centerY + y) <= spr.spriteHeight THEN canvas(i, centerY + y) = drawColor
+            IF i >= 0 AND i <= spr.spriteWidth AND (centerY - y) >= 0 AND (centerY - y) <= spr.spriteHeight THEN canvas(i, centerY - y) = drawColor
         NEXT i
         IF d < 0 THEN
             d = d + 4 * x + 6

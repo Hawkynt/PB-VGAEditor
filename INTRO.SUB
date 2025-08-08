@@ -14,22 +14,22 @@ SUB ShowIntro ()
     FOR t = 1 TO 4000: NEXT
     CLS
     PRINT: PRINT: PRINT
-    COLOR 2: PRINT SPC(14); "≤≤≤≤≤≤ ≤≤  ≤≤ ≤≤≤≤≤≤?        "; : COLOR 1: PRINT "≤≤  ≤≤   ±±±±    ∞∞  "
-    COLOR 2: PRINT SPC(14); "?≤≤ ?≤≤  ≤≤  ≤≤   ?        "; : COLOR 1: PRINT "≤≤  ≤≤  ±±  ±±  ∞∞∞∞ "
-    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤ ?          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±      ∞∞  ∞∞"
-    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤≤≤≤≤  ≤≤≤≤           "; : COLOR 1: PRINT "≤≤  ≤≤ ±±      ∞∞  ∞∞"
-    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤ ?          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±  ±±?∞∞∞∞∞∞"
-    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤   ?        "; : COLOR 1: PRINT " ≤≤≤≤  ±±   ±± ∞∞  ∞∞"
-    COLOR 2: PRINT SPC(14); " ≤≤≤≤  ≤≤  ≤≤ ≤≤≤≤≤≤?        "; : COLOR 1: PRINT "  ≤≤    ±±±±±± ∞∞  ∞∞"
+    COLOR 2: PRINT SPC(14); "≤≤≤≤≤≤ ≤≤  ≤≤  ≤≤≤≤≤≤        "; : COLOR 1: PRINT "≤≤  ≤≤   ±±±±    ∞∞  "
+    COLOR 2: PRINT SPC(14); " ≤≤≤≤  ≤≤  ≤≤  ≤≤            "; : COLOR 1: PRINT "≤≤  ≤≤  ±±  ±±  ∞∞∞∞ "
+    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤ ≤          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±      ∞∞  ∞∞"
+    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤≤≤≤≤  ≤≤≤≤          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±      ∞∞  ∞∞"
+    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤ ≤          "; : COLOR 1: PRINT "≤≤  ≤≤ ±±  ±±  ∞∞∞∞∞∞"
+    COLOR 2: PRINT SPC(14); "  ≤≤   ≤≤  ≤≤  ≤≤            "; : COLOR 1: PRINT " ≤≤≤≤  ±±   ±± ∞∞  ∞∞"
+    COLOR 2: PRINT SPC(14); " ≤≤≤≤  ≤≤  ≤≤  ≤≤≤≤≤≤        "; : COLOR 1: PRINT "  ≤≤    ±±±±±± ∞∞  ∞∞"
     FOR t = 1 TO 5
      PRINT
     NEXT
     COLOR 4
-    PRINT , "     €€€€€€?€€€€?  €€€€€€ €€€€€€   €€?  €€€€€€ "
-    PRINT , "      €€   ? €€ €€    €€   ?€€ ? €€ €€   €€  €€"
-    PRINT , "      €€ ?   €€  €€   €€     €€   €€   €€  €€  €€"
-    PRINT , "      €€€€    €€  €€   €€     €€   €€   €€  €€€€?"
-    PRINT , "      €€ ?   €€  €€   €€     €€   €€   €€  €€ €€ "
-    PRINT , "      €€   ? €€ €€    €€     €€    €€ €€   €€  €€"
-    PRINT , "     €€€€€€?€€€€?  €€€€€€  €€€€    €€?  €€?  ?
+    PRINT , "     €€€€€€ €€€€€   €€€€€€ €€€€€€   €€€   €€€€€€ "
+    PRINT , "      €€     €€ €€    €€    €€€€   €€ €€   €€  €€"
+    PRINT , "      €€ €   €€  €€   €€     €€   €€   €€  €€  €€"
+    PRINT , "      €€€€   €€  €€   €€     €€   €€   €€  €€€€€ "
+    PRINT , "      €€ €   €€  €€   €€     €€   €€   €€  €€ €€ "
+    PRINT , "      €€     €€ €€    €€     €€    €€ €€   €€  €€"
+    PRINT , "     €€€€€€ €€€€€   €€€€€€  €€€€    €€€   €€€   €
 END SUB

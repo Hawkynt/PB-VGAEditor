@@ -49,7 +49,8 @@ END
 '* Purpose: Creates a predictable pattern on the canvas for testing.
 '******************************************************************************
 SUB CreateTestPattern (spr AS Sprite, canvas() AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER
+    DIM x AS INTEGER
+    DIM y AS INTEGER
     FOR y = 0 TO spr.height
         FOR x = 0 TO spr.width
             canvas(x, y) = (x + y) MOD 16
@@ -118,7 +119,8 @@ END SUB
 '* Purpose: Compares two canvases to see if they are identical.
 '******************************************************************************
 FUNCTION CompareCanvases (spr AS Sprite, canvas1() AS INTEGER, canvas2() AS INTEGER) AS INTEGER
-    DIM x AS INTEGER, y AS INTEGER
+    DIM x AS INTEGER
+    DIM y AS INTEGER
     CompareCanvases = 1 ' TRUE
     FOR y = 0 TO spr.height
         FOR x = 0 TO spr.width

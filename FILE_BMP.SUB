@@ -1,6 +1,5 @@
 ' .BMP File Format Module
 
-$INCLUDE "SPRITE.SUB"
 
 TYPE BMPHeader
     bfType      AS STRING * 2
@@ -37,24 +36,30 @@ SUB WriteBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
-    DIM x AS INTEGER, y AS INTEGER
-    DIM width AS INTEGER, height AS INTEGER
-    DIM rowPadding AS INTEGER, rowSize AS INTEGER
+    DIM x AS INTEGER
+    DIM y AS INTEGER
+    DIM spriteWidth AS INTEGER
+    DIM spriteHeight AS INTEGER
+    DIM rowPadding AS INTEGER
+    DIM rowSize AS INTEGER
     DIM pixelDataSize AS LONG
     DIM vgaPalette(0 TO 15) AS LONG
+    DIM byteVal AS STRING * 1
+    DIM p1 AS INTEGER
+    DIM p2 AS INTEGER
+    DIM paddingBytes AS STRING
     errorMessage = ""
-    ON ERROR GOTO WriteBMPError
 
     ' Check if there is anything to save
     IF spr.boundingBoxX2 = -1 THEN EXIT SUB
 
-    width = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
-    height = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+    spriteWidth = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
+    spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
 
     ' BMP rows are padded to a multiple of 4 bytes
-    rowSize = INT((width * 4 + 31) / 32) * 4
-    rowPadding = rowSize - (width / 2)
-    pixelDataSize = rowSize * height
+    rowSize = INT((spriteWidth * 4 + 31) / 32) * 4
+    rowPadding = rowSize - (spriteWidth / 2)
+    pixelDataSize = rowSize * spriteHeight
 
     ' --- Fill BMP File Header ---
     bmpH.bfType = "BM"
@@ -65,8 +70,8 @@ SUB WriteBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
 
     ' --- Fill BMP Info Header ---
     bmpIH.biSize = 40
-    bmpIH.biWidth = width
-    bmpIH.biHeight = height
+    bmpIH.biWidth = spriteWidth
+    bmpIH.biHeight = spriteHeight
     bmpIH.biPlanes = 1
     bmpIH.biBitCount = 4 ' 4 bits per pixel for 16 colors
     bmpIH.biCompression = 0 ' BI_RGB (no compression)
@@ -95,8 +100,6 @@ SUB WriteBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
     ' --- Write Pixel Data (upside-down and packed) ---
     FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
         FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2 STEP 2
-            DIM byteVal AS STRING * 1
-            DIM p1 AS INTEGER, p2 AS INTEGER
             p1 = canvas(x, y)
             IF x + 1 > spr.boundingBoxX2 THEN
                 p2 = 0
@@ -106,14 +109,13 @@ SUB WriteBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
             byteVal = CHR$((p1 * 16) + p2)
             PUT #fileNum, , byteVal
         NEXT x
-        IF rowPadding > 0 THEN PUT #fileNum, , STRING$(rowPadding, 0)
+        IF rowPadding > 0 THEN
+            paddingBytes = STRING$(rowPadding, 0)
+            PUT #fileNum, , paddingBytes
+        END IF
     NEXT y
 
     CLOSE #fileNum
-    EXIT SUB
-WriteBMPError:
-    errorMessage = "Error writing BMP file: " + ERROR$
-    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -128,13 +130,18 @@ SUB ReadBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
-    DIM x AS INTEGER, y AS INTEGER
-    DIM width AS LONG, height AS LONG
-    DIM startX AS INTEGER, startY AS INTEGER
-    DIM rowPadding AS INTEGER, rowSize AS INTEGER
-    DIM byteVal AS STRING * 1, p1 AS INTEGER, p2 AS INTEGER
+    DIM x AS INTEGER
+    DIM y AS INTEGER
+    DIM spriteWidth AS LONG
+    DIM spriteHeight AS LONG
+    DIM startX AS INTEGER
+    DIM startY AS INTEGER
+    DIM rowPadding AS INTEGER
+    DIM rowSize AS INTEGER
+    DIM byteVal AS STRING * 1
+    DIM p1 AS INTEGER
+    DIM p2 AS INTEGER
     errorMessage = ""
-    ON ERROR GOTO ReadBMPError
 
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
@@ -150,37 +157,33 @@ SUB ReadBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
         EXIT SUB
     END IF
 
-    width = bmpIH.biWidth
-    height = bmpIH.biHeight
-    rowSize = INT((width * 4 + 31) / 32) * 4
-    rowPadding = rowSize - (width / 2)
+    spriteWidth = bmpIH.biWidth
+    spriteHeight = bmpIH.biHeight
+    rowSize = INT((spriteWidth * 4 + 31) / 32) * 4
+    rowPadding = rowSize - (spriteWidth / 2)
 
     ' Center the image on the canvas
-    startX = (spr.width - width) / 2
-    startY = (spr.height - height) / 2
+    startX = (spr.spriteWidth - spriteWidth) / 2
+    startY = (spr.spriteHeight - spriteHeight) / 2
 
     ' --- Seek to Pixel Data ---
-    SEEK #fileNum, bmpH.bfOffBits + 1
+    SEEK fileNum, bmpH.bfOffBits + 1
 
     ' --- Read Pixel Data (upside-down) ---
-    FOR y = height - 1 TO 0 STEP -1
-        FOR x = 0 TO width - 1 STEP 2
+    FOR y = spriteHeight - 1 TO 0 STEP -1
+        FOR x = 0 TO spriteWidth - 1 STEP 2
             byteVal = INPUT$(1, #fileNum)
             p1 = ASC(byteVal) \ 16
             p2 = ASC(byteVal) AND 15
-            IF (startX + x) <= spr.width AND (startY + y) <= spr.height THEN
+            IF (startX + x) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN
                 canvas(startX + x, startY + y) = p1
             END IF
-            IF (startX + x + 1) <= spr.width AND (startY + y) <= spr.height THEN
+            IF (startX + x + 1) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN
                 canvas(startX + x + 1, startY + y) = p2
             END IF
         NEXT x
-        IF rowPadding > 0 THEN SEEK #fileNum, LOF(#fileNum) - (LOF(#fileNum) - (SEEK(#fileNum) + rowPadding))
+        IF rowPadding > 0 THEN SEEK fileNum, SEEK(fileNum) + rowPadding
     NEXT y
 
     CLOSE #fileNum
-    EXIT SUB
-ReadBMPError:
-    errorMessage = "Error reading BMP file: " + ERROR$
-    IF fileNum <> 0 THEN CLOSE #fileNum
 END SUB
