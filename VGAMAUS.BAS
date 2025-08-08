@@ -46,7 +46,7 @@
 
 ' Color Picker Grid
 %COLOR_GRID_X = %GRID_X_MAX + 10
-%COLOR_GRID_Y = 10
+%COLOR_GRID_Y = 60
 %COLOR_GRID_STEP = 10
 %COLOR_GRID_COLS = 4
 %COLOR_GRID_ROWS = 4
@@ -114,28 +114,28 @@ SUB MainEditorLoop
     
     CLS
     DrawGrid
-
+    DrawUI drawingColor, currentFileName, mainSprite, selectedTool, toolIcons()
+    
     DO
-        IF cursorBoxColorToggle = 1 THEN cursorBoxColor = 4 ELSE cursorBoxColor = 14
         GetMouseState mouse
         prevX = currentX
         prevY = currentY
         currentX = INT(mouse.x / %GRID_X_STEP) * %GRID_X_STEP
         currentY = INT(mouse.y / %GRID_Y_STEP) * %GRID_Y_STEP + 2
 
-        LINE (prevX, prevY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
-
         IF currentX > %GRID_X_MAX - %GRID_X_STEP THEN currentX = %GRID_X_MAX - %GRID_X_STEP
         IF currentX < 0 THEN currentX = 0
         IF currentY < %GRID_START_Y THEN currentY = %GRID_START_Y
         IF currentY > %GRID_Y_MAX - %GRID_Y_STEP THEN currentY = %GRID_Y_MAX - %GRID_Y_STEP
 
-        HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved, selectedTool
+        LINE (prevX, prevY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
+        IF cursorBoxColorToggle = 1 THEN cursorBoxColor = 4 ELSE cursorBoxColor = 14
         LINE (currentX, currentY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), cursorBoxColor, B
-        DrawUI drawingColor, currentFileName, mainSprite, selectedTool, toolIcons()
-        HandleKeyboardInput drawingColor, isLineMode, isSaved, currentFileName, mainSprite, spriteCanvas(), selectedTool
-
         IF cursorBoxColorToggle = 1 THEN cursorBoxColorToggle = 2 ELSE cursorBoxColorToggle = 1
+
+        HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved, selectedTool
+        HandleKeyboardInput drawingColor, isLineMode, isSaved, currentFileName, mainSprite, spriteCanvas(), selectedTool
+        'TODO: need to redraw screen when key was pressed
     LOOP
 END SUB
 
@@ -303,31 +303,32 @@ SUB HandleChangeColor (drawColor AS INTEGER)
     DIM selectedColorY AS INTEGER
     DIM currentKey AS STRING
     DIM oldColor AS INTEGER
+    DIM temp AS INTEGER
 
     oldColor = drawColor
     selectedColorX = drawColor MOD %COLOR_GRID_COLS
     selectedColorY = drawColor \ %COLOR_GRID_COLS
 
+    ' Draw initial selection highlight
+    LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
+
     DO
         ' Clear previous selection highlight
         LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 0, B
 
-        ' Draw new selection highlight
-        LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
-
-        currentKey = INKEY$
+        currentKey = WaitForKey()
         SELECT CASE ASC(currentKey)
             CASE 0 ' Extended key
-                SELECT CASE ASC(RIGHT$(currentKey, 1))
-                    CASE KEY_LEFT_ARROW
-                        selectedColorX = (selectedColorX - 1 + %COLOR_GRID_COLS) MOD %COLOR_GRID_COLS
-                    CASE KEY_RIGHT_ARROW
-                        selectedColorX = (selectedColorX + 1) MOD %COLOR_GRID_COLS
-                    CASE KEY_UP_ARROW
-                        selectedColorY = (selectedColorY - 1 + %COLOR_GRID_ROWS) MOD %COLOR_GRID_ROWS
-                    CASE KEY_DOWN_ARROW
-                        selectedColorY = (selectedColorY + 1) MOD %COLOR_GRID_ROWS
-                END SELECT
+                    SELECT CASE ASC(RIGHT$(currentKey, 1))
+                        CASE %KEY_LEFT_ARROW ' Left Arrow
+                            selectedColorX = (selectedColorX - 1 + %COLOR_GRID_COLS) MOD %COLOR_GRID_COLS
+                        CASE %KEY_RIGHT_ARROW ' Right Arrow
+                            selectedColorX = (selectedColorX + 1) MOD %COLOR_GRID_COLS
+                        CASE %KEY_UP_ARROW ' Up Arrow
+                            selectedColorY = (selectedColorY - 1 + %COLOR_GRID_ROWS) MOD %COLOR_GRID_ROWS
+                        CASE %KEY_DOWN_ARROW ' Down Arrow
+                            selectedColorY = (selectedColorY + 1) MOD %COLOR_GRID_ROWS
+                    END SELECT
             CASE 13 ' Enter
                 drawColor = (selectedColorY * %COLOR_GRID_COLS) + selectedColorX
                 EXIT DO
@@ -335,9 +336,13 @@ SUB HandleChangeColor (drawColor AS INTEGER)
                 drawColor = oldColor ' Revert to old color
                 EXIT DO
         END SELECT
-        SLEEP 1
+
+        ' Draw new selection highlight
+        LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
+
     LOOP
-    CLS
+    ' Clear the selection highlight
+    LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 0, B
 END SUB
 
 '******************************************************************************
@@ -472,29 +477,42 @@ END SUB
 SUB HandleToolSelection (selectedTool AS INTEGER)
     DIM currentKey AS STRING
     DIM oldTool AS INTEGER
+    DIM temp AS INTEGER
     oldTool = selectedTool
 
     DO
-        ' Show tool selection prompt
+        ' Show tool selection prompt, TODO: use select by icon not by text
         LOCATE 1, 1: COLOR 15
         PRINT "Select Tool: [0=Draw 1=Line 2=Rect 3=FillRect 4=Circle 5=FillCircle 6-9=Move] Tool=" + STR$(selectedTool) + " ";
 
-        currentKey = INKEY$
+        currentKey = WaitForKey()
         SELECT CASE ASC(currentKey)
             CASE 0 ' Extended key
-                SELECT CASE ASC(RIGHT$(currentKey, 1))
-                    CASE KEY_LEFT_ARROW
-                        selectedTool = (selectedTool - 1 + %NUM_TOOLS) MOD %NUM_TOOLS
-                    CASE KEY_RIGHT_ARROW
-                        selectedTool = (selectedTool + 1) MOD %NUM_TOOLS
-                END SELECT
+              SELECT CASE ASC(RIGHT$(currentKey, 1))
+                  CASE %KEY_LEFT_ARROW ' Left Arrow
+                      selectedTool = (selectedTool - 1 + %NUM_TOOLS) MOD %NUM_TOOLS
+                  CASE %KEY_RIGHT_ARROW ' Right Arrow
+                      selectedTool = (selectedTool + 1) MOD %NUM_TOOLS
+              END SELECT
             CASE 13 ' Enter
                 EXIT DO
             CASE 27 ' ESC
                 selectedTool = oldTool ' Revert to old tool
                 EXIT DO
         END SELECT
-        SLEEP 1
     LOOP
     LOCATE 1, 1: PRINT STRING$(79, " ")
 END SUB
+
+'******************************************************************************
+'* FUNCTION: WaitForKey
+'* Purpose: Waits for a key press and returns the key code.
+'* Returns: (STRING) The key that was pressed.
+'******************************************************************************
+FUNCTION WaitForKey () AS STRING
+    DIM currentKey AS STRING
+    DO
+        currentKey = INKEY$
+    LOOP WHILE currentKey = ""
+    WaitForKey = currentKey
+END FUNCTION
