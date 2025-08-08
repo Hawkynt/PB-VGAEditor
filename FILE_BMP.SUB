@@ -130,59 +130,121 @@ SUB ReadBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
-    DIM x AS INTEGER
-    DIM y AS INTEGER
-    DIM spriteWidth AS LONG
-    DIM spriteHeight AS LONG
-    DIM startX AS INTEGER
-    DIM startY AS INTEGER
-    DIM rowPadding AS INTEGER
-    DIM rowSize AS INTEGER
+    DIM x AS LONG, y AS LONG
+    DIM spriteWidth AS LONG, spriteHeight AS LONG
+    DIM topDown AS LONG
+    DIM startX AS LONG, startY AS LONG
+    DIM rowBytes AS LONG, rowSize AS LONG, rowPadding AS LONG
+    DIM b AS LONG
     DIM byteVal AS STRING * 1
-    DIM p1 AS INTEGER
-    DIM p2 AS INTEGER
+    DIM p1 AS INTEGER, p2 AS INTEGER
+    DIM dx AS LONG, dy AS LONG
+    DIM srcX AS LONG, srcY AS LONG
+    DIM y0 AS LONG, yStep AS LONG
+    DIM curPos AS LONG
+
     errorMessage = ""
 
     fileNum = FREEFILE
+    ON ERROR RESUME NEXT
     OPEN fullPath FOR BINARY AS #fileNum
+    IF ERR <> 0 THEN
+        errorMessage = "Cannot open file: " + fullPath
+        ERRCLEAR : ON ERROR GOTO 0
+        EXIT SUB
+    END IF
+    ON ERROR GOTO 0
 
-    ' --- Read Headers ---
+    ' --- Headers ---
     GET #fileNum, , bmpH
     GET #fileNum, , bmpIH
 
-    ' --- Validate Header ---
-    IF bmpH.bfType <> "BM" OR bmpIH.biBitCount <> 4 OR bmpIH.biCompression <> 0 THEN
-        errorMessage = "Not a valid 16-color BMP file."
-        CLOSE #fileNum
-        EXIT SUB
+    ' --- Validate ---
+    IF bmpH.bfType <> "BM" THEN
+        errorMessage = "Not a BMP."
+        CLOSE #fileNum : EXIT SUB
+    END IF
+    IF bmpIH.biBitCount <> 4 THEN
+        errorMessage = "Only 4bpp (16-color) BMP supported."
+        CLOSE #fileNum : EXIT SUB
+    END IF
+    IF bmpIH.biCompression <> 0 THEN
+        errorMessage = "Compressed BMP not supported."
+        CLOSE #fileNum : EXIT SUB
     END IF
 
-    spriteWidth = bmpIH.biWidth
+    spriteWidth  = bmpIH.biWidth
     spriteHeight = bmpIH.biHeight
-    rowSize = INT((spriteWidth * 4 + 31) / 32) * 4
-    rowPadding = rowSize - (spriteWidth / 2)
+    topDown = 0
+    IF spriteHeight < 0 THEN
+        topDown = 1
+        spriteHeight = -spriteHeight
+    END IF
+    IF spriteWidth <= 0 OR spriteHeight <= 0 THEN
+        errorMessage = "Invalid BMP dimensions."
+        CLOSE #fileNum : EXIT SUB
+    END IF
 
-    ' Center the image on the canvas
-    startX = (spr.spriteWidth - spriteWidth) / 2
-    startY = (spr.spriteHeight - spriteHeight) / 2
+    ' 4bpp -> 2 pixels/byte
+    rowBytes   = (spriteWidth + 1) \ 2
+    rowSize    = ((rowBytes + 3) \ 4) * 4
+    rowPadding = rowSize - rowBytes
 
-    ' --- Seek to Pixel Data ---
+    startX = 0
+    startY = 0
+
+    ' Seek to pixel data (PB SEEK setter has no '#'; offset is 1-based position)
     SEEK fileNum, bmpH.bfOffBits + 1
 
-    ' --- Read Pixel Data (upside-down) ---
-    FOR y = spriteHeight - 1 TO 0 STEP -1
-        FOR x = 0 TO spriteWidth - 1 STEP 2
-            byteVal = INPUT$(1, #fileNum)
+    ' Row order
+    IF topDown THEN
+        y0 = 0 : yStep = 1
+    ELSE
+        y0 = spriteHeight - 1 : yStep = -1
+    END IF
+
+    ' --- Pixels ---
+    FOR y = 0 TO spriteHeight - 1
+        srcY = y0 + y * yStep
+        dy = startY + srcY
+        ' consume row anyway; only draw if dy in bounds
+        FOR b = 0 TO rowBytes - 1
+            ON ERROR RESUME NEXT
+            GET #fileNum, , byteVal
+            IF ERR <> 0 OR LEN(byteVal) <> 1 THEN
+                errorMessage = "Unexpected EOF in BMP pixel data."
+                ERRCLEAR : ON ERROR GOTO 0
+                CLOSE #fileNum : EXIT SUB
+            END IF
+            ON ERROR GOTO 0
+
             p1 = ASC(byteVal) \ 16
             p2 = ASC(byteVal) AND 15
-            IF (startX + x) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN
-                canvas(startX + x, startY + y) = p1
+
+            IF dy >= 0 AND dy < spr.spriteHeight THEN
+                ' left pixel at x = b*2
+                srcX = b * 2
+                dx = startX + srcX
+                IF dx >= 0 AND dx < spr.spriteWidth THEN
+                    canvas(dx, dy) = p1
+                END IF
+
+                ' right pixel at x = b*2+1, only if within width
+                srcX = b * 2 + 1
+                IF srcX < spriteWidth THEN
+                    dx = startX + srcX
+                    IF dx >= 0 AND dx < spr.spriteWidth THEN
+                        canvas(dx, dy) = p2
+                    END IF
+                END IF
             END IF
-            IF (startX + x + 1) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN
-                canvas(startX + x + 1, startY + y) = p2
-            END IF
-        NEXT x
-        IF rowPadding > 0 THEN SEEK fileNum, SEEK(fileNum) + rowPadding
+        NEXT b
+
+        ' skip row padding
+        IF rowPadding > 0 THEN
+            curPos = SEEK(fileNum) + rowPadding
+            SEEK fileNum, curPos
+        END IF
     NEXT y
 
     CLOSE #fileNum
