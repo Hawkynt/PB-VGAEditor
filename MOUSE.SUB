@@ -22,6 +22,12 @@ SUB GetMouseState (mouse AS MouseInfo)
     mouse.button = BX
     mouse.x = CX
     mouse.y = DX
+    ' Fallback if mouse coordinates are invalid
+    IF mouse.x < 0 OR mouse.x > 640 OR mouse.y < 0 OR mouse.y > 480 THEN
+        mouse.x = 320
+        mouse.y = 240
+        mouse.button = 0
+    END IF
 END SUB
 
 '******************************************************************************
@@ -32,12 +38,11 @@ END SUB
 '*   AX, BX, CX, DX (BYVAL INTEGER): Values for the registers.
 '* Returns: (INTEGER) The value of the AX register after the interrupt.
 '******************************************************************************
-FUNCTION InterruptWrapper (BYVAL intNum AS INTEGER, BYVAL AX AS INTEGER, BYVAL BX AS INTEGER, BYVAL CX AS INTEGER, BYVAL DX AS INTEGER) AS INTEGER
+SUB InterruptWrapper (BYVAL intNum AS INTEGER, AX AS INTEGER, BX AS INTEGER, CX AS INTEGER, DX AS INTEGER)
     REG 1, AX: REG 2, BX: REG 3, CX: REG 4, DX
     CALL INTERRUPT intNum
     AX = REG(1): BX = REG(2): CX = REG(3): DX = REG(4)
-    InterruptWrapper = AX
-END FUNCTION
+END SUB
 
 '******************************************************************************
 '* SUB: SetMouseVisibility
@@ -98,9 +103,11 @@ SUB WaitForInput ()
     DIM startX AS INTEGER
     DIM startY AS INTEGER
     DIM startButton AS INTEGER
+    DIM keyPressed AS STRING
     GetMouseState mouse
     startX = mouse.x: startY = mouse.y: startButton = mouse.button
     DO
         GetMouseState mouse
-    LOOP UNTIL startX <> mouse.x OR startY <> mouse.y OR startButton <> mouse.button
+        keyPressed = INKEY$
+    LOOP UNTIL startX <> mouse.x OR startY <> mouse.y OR startButton <> mouse.button OR keyPressed <> ""
 END SUB
