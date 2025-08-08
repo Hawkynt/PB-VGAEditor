@@ -21,11 +21,13 @@ SUB ReadBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
     DO WHILE NOT EOF(fileNum)
         LINE INPUT #fileNum, lineData
         IF LEFT$(UCASE$(lineData), 5) = "DATA " THEN
-            lineData = MID$(lineData, 7, LEN(lineData) - 8)
+            ' Remove DATA " and trailing "
+            lineData = MID$(lineData, 7)
+            IF RIGHT$(lineData, 1) = CHR$(34) THEN lineData = LEFT$(lineData, LEN(lineData) - 1)
             IF lineData = "99" THEN EXIT DO
             FOR i = 1 TO LEN(lineData) STEP 2
                 x = (i - 1) / 2
-                IF x <= spr.spriteWidth THEN
+                IF x < spr.spriteWidth THEN
                     IF MID$(lineData, i, 2) = "hg" THEN
                         canvas(x, y) = 0
                     ELSE
@@ -34,7 +36,7 @@ SUB ReadBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
                 END IF
             NEXT i
             y = y + 1
-            IF y > spr.spriteHeight THEN EXIT DO
+            IF y >= spr.spriteHeight THEN EXIT DO
         END IF
     LOOP
     CLOSE #fileNum
