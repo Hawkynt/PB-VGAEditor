@@ -46,7 +46,7 @@
 
 ' Color Picker Grid
 %COLOR_GRID_X = %GRID_X_MAX + 10
-%COLOR_GRID_Y = 60
+%COLOR_GRID_Y = 92
 %COLOR_GRID_STEP = 10
 %COLOR_GRID_COLS = 4
 %COLOR_GRID_ROWS = 4
@@ -63,6 +63,7 @@ END TYPE
 $INCLUDE "INTRO.SUB"
 $INCLUDE "MOUSE.SUB"
 $INCLUDE "SPRITE.SUB"
+$INCLUDE "PREVIEW.SUB"
 $INCLUDE "FILE_VGA.SUB"
 $INCLUDE "FILE_BAS.SUB"
 $INCLUDE "FILE_BMP.SUB"
@@ -128,14 +129,16 @@ SUB MainEditorLoop
         IF currentY < %GRID_START_Y THEN currentY = %GRID_START_Y
         IF currentY > %GRID_Y_MAX - %GRID_Y_STEP THEN currentY = %GRID_Y_MAX - %GRID_Y_STEP
 
+        ' Redraw cursor every iteration to maintain flashing effect
         LINE (prevX, prevY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
         IF cursorBoxColorToggle = 1 THEN cursorBoxColor = 4 ELSE cursorBoxColor = 14
         LINE (currentX, currentY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), cursorBoxColor, B
         IF cursorBoxColorToggle = 1 THEN cursorBoxColorToggle = 2 ELSE cursorBoxColorToggle = 1
 
         HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved, selectedTool
-        HandleKeyboardInput drawingColor, isLineMode, isSaved, currentFileName, mainSprite, spriteCanvas(), selectedTool
-        'TODO: need to redraw screen when key was pressed
+        IF HandleKeyboardInput(drawingColor, isLineMode, isSaved, currentFileName, mainSprite, spriteCanvas(), selectedTool) = %TRUE THEN
+            DrawUI drawingColor, currentFileName, mainSprite, selectedTool, toolIcons()
+        END IF
     LOOP
 END SUB
 
@@ -173,6 +176,8 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
     DIM firstClickX AS STATIC INTEGER
     DIM firstClickY AS STATIC INTEGER
     DIM isFirstClick AS STATIC INTEGER
+    DIM lastPreviewX AS STATIC INTEGER
+    DIM lastPreviewY AS STATIC INTEGER
 
     canvasX = mouse.x / %GRID_X_STEP
     canvasY = (mouse.y - %GRID_START_Y) / %GRID_Y_STEP
@@ -189,9 +194,23 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
                 IF canvas(canvasX, canvasY) <> colorToUse THEN
                     canvas(canvasX, canvasY) = colorToUse
                     isSaved = %FALSE
-                    UpdateSpriteBoundingBox spr, canvas()
+                    ' Incremental bounding box update instead of full scan
+                    IF colorToUse <> 0 THEN  ' Non-transparent pixel
+                        IF spr.boundingBoxX2 = -1 THEN  ' Empty sprite, initialize
+                            spr.boundingBoxX1 = canvasX
+                            spr.boundingBoxY1 = canvasY
+                            spr.boundingBoxX2 = canvasX
+                            spr.boundingBoxY2 = canvasY
+                        ELSE
+                            IF canvasX < spr.boundingBoxX1 THEN spr.boundingBoxX1 = canvasX
+                            IF canvasY < spr.boundingBoxY1 THEN spr.boundingBoxY1 = canvasY  
+                            IF canvasX > spr.boundingBoxX2 THEN spr.boundingBoxX2 = canvasX
+                            IF canvasY > spr.boundingBoxY2 THEN spr.boundingBoxY2 = canvasY
+                        END IF
+                    END IF
                     CanvasToScreen canvasX, canvasY, screenX, screenY
                     LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), colorToUse, BF
+                    LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
                     PSET (canvasX + %PREVIEW_X + 3, canvasY + %PREVIEW_Y), colorToUse
                 END IF
             CASE %TOOL_LINE
@@ -199,19 +218,46 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
             CASE %TOOL_RECTANGLE, %TOOL_FILLED_RECTANGLE, %TOOL_CIRCLE, %TOOL_FILLED_CIRCLE
                 IF mouse.button = 1 THEN
                     IF isFirstClick = %FALSE THEN
+                        ' Start of drag - record starting position
                         firstClickX = canvasX
                         firstClickY = canvasY
+                        lastPreviewX = canvasX
+                        lastPreviewY = canvasY
                         isFirstClick = %TRUE
                     ELSE
-                        SELECT CASE selectedTool
-                            CASE %TOOL_RECTANGLE: DrawRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
-                            CASE %TOOL_FILLED_RECTANGLE: DrawFilledRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
-                            CASE %TOOL_CIRCLE: DrawCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
-                            CASE %TOOL_FILLED_CIRCLE: DrawFilledCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                        ' Clear previous preview if mouse moved
+                        IF canvasX <> lastPreviewX OR canvasY <> lastPreviewY THEN
+                            SELECT CASE selectedTool
+                                CASE %TOOL_RECTANGLE: ClearRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
+                                CASE %TOOL_FILLED_RECTANGLE: ClearFilledRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
+                            END SELECT
+                        END IF
+                        ' Show new preview
+                        SELECT CASE selectedTool  
+                            CASE %TOOL_RECTANGLE: ShowRectanglePreview firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                            CASE %TOOL_FILLED_RECTANGLE: ShowFilledRectanglePreview firstClickX, firstClickY, canvasX, canvasY, drawingColor
                         END SELECT
-                        isSaved = %FALSE
-                        isFirstClick = %FALSE
+                        lastPreviewX = canvasX
+                        lastPreviewY = canvasY
                     END IF
+                ELSEIF isFirstClick = %TRUE THEN
+                    ' Mouse released - clear preview and draw final shape
+                    SELECT CASE selectedTool
+                        CASE %TOOL_RECTANGLE: 
+                            ClearRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
+                            DrawRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                        CASE %TOOL_FILLED_RECTANGLE: 
+                            ClearFilledRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
+                            DrawFilledRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                        CASE %TOOL_CIRCLE: 
+                            DrawCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                        CASE %TOOL_FILLED_CIRCLE: 
+                            DrawFilledCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                    END SELECT
+                    'TODO: refresh whole canvas grid
+                    RenderCanvas spr, canvas()
+                    isSaved = %FALSE
+                    isFirstClick = %FALSE
                 END IF
         END SELECT
     END IF
@@ -228,21 +274,22 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleKeyboardInput (drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER, selectedTool AS INTEGER)
+FUNCTION HandleKeyboardInput (drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER, selectedTool AS INTEGER) AS INTEGER
     DIM inputKey AS STRING
     DIM keyCode AS INTEGER
+    HandleKeyboardInput = %FALSE
     inputKey = INKEY$
-    IF inputKey = "" THEN EXIT SUB
+    IF inputKey = "" THEN EXIT FUNCTION
     keyCode = ASC(inputKey)
     IF LEN(inputKey) > 1 THEN keyCode = ASC(RIGHT$(inputKey, 1))
 
     SELECT CASE keyCode
-        CASE %KEY_N: HandleNewFile isSaved, isLineMode, currentFileName, spr, canvas()
-        CASE %KEY_C: HandleChangeColor drawingColor
-        CASE %KEY_L: HandleLoadFile isSaved, currentFileName, spr, canvas()
+        CASE %KEY_N: HandleNewFile isSaved, isLineMode, currentFileName, spr, canvas(): HandleKeyboardInput = %TRUE
+        CASE %KEY_C: HandleChangeColor drawingColor: HandleKeyboardInput = %TRUE
+        CASE %KEY_L: HandleLoadFile isSaved, currentFileName, spr, canvas(): HandleKeyboardInput = %TRUE
         CASE %KEY_S: HandleSaveFile currentFileName, isSaved, spr, canvas()
         CASE %KEY_INSERT: isLineMode = NOT isLineMode
-        CASE %KEY_T: HandleToolSelection selectedTool
+        CASE %KEY_T: HandleToolSelection selectedTool: HandleKeyboardInput = %TRUE
         CASE %KEY_ESC: HandleExit isSaved
         CASE 0 ' Extended key
             SELECT CASE keyCode
@@ -252,7 +299,7 @@ SUB HandleKeyboardInput (drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved
                 CASE %KEY_DOWN_ARROW: IF selectedTool = %TOOL_MOVE_DOWN THEN MovePixelsDown spr, canvas(): isSaved = %FALSE
             END SELECT
     END SELECT
-END SUB
+END FUNCTION
 
 '******************************************************************************
 '* FUNCTION: CheckUnsavedChanges
@@ -313,12 +360,12 @@ SUB HandleChangeColor (drawColor AS INTEGER)
     LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
 
     DO
-        ' Clear previous selection highlight
-        LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 0, B
-
         currentKey = WaitForKey()
         SELECT CASE ASC(currentKey)
             CASE 0 ' Extended key
+                    ' Clear previous selection highlight before moving
+                    LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 0, B
+                    
                     SELECT CASE ASC(RIGHT$(currentKey, 1))
                         CASE %KEY_LEFT_ARROW ' Left Arrow
                             selectedColorX = (selectedColorX - 1 + %COLOR_GRID_COLS) MOD %COLOR_GRID_COLS
@@ -329,6 +376,9 @@ SUB HandleChangeColor (drawColor AS INTEGER)
                         CASE %KEY_DOWN_ARROW ' Down Arrow
                             selectedColorY = (selectedColorY + 1) MOD %COLOR_GRID_ROWS
                     END SELECT
+                    
+                    ' Draw new selection highlight after moving
+                    LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
             CASE 13 ' Enter
                 drawColor = (selectedColorY * %COLOR_GRID_COLS) + selectedColorX
                 EXIT DO
@@ -336,13 +386,8 @@ SUB HandleChangeColor (drawColor AS INTEGER)
                 drawColor = oldColor ' Revert to old color
                 EXIT DO
         END SELECT
-
-        ' Draw new selection highlight
-        LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
-
     LOOP
-    ' Clear the selection highlight
-    LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 0, B
+    ' Don't clear the selection highlight - DrawUI will show the proper selection
 END SUB
 
 '******************************************************************************
@@ -461,6 +506,7 @@ SUB LoadToolIcons (toolIcons() AS STRING)
     DIM i AS INTEGER
     DIM j AS INTEGER
     DIM iconRow AS STRING
+    RESTORE  ' Reset DATA pointer to beginning
     FOR i = 0 TO %NUM_TOOLS - 1
         toolIcons(i) = ""
         FOR j = 1 TO 8
@@ -477,23 +523,43 @@ END SUB
 SUB HandleToolSelection (selectedTool AS INTEGER)
     DIM currentKey AS STRING
     DIM oldTool AS INTEGER
-    DIM temp AS INTEGER
+    DIM toolIcons(0 TO %NUM_TOOLS - 1) AS STRING
+    DIM i AS INTEGER
+    DIM iconX AS INTEGER
+    DIM iconY AS INTEGER
+    
     oldTool = selectedTool
+    LoadToolIcons toolIcons()
+    
+    ' Show initial tool selection message
+    LOCATE 1, 1: COLOR 15
+    PRINT "Select Tool: Use arrow keys, Enter to confirm, ESC to cancel                    ";
 
     DO
-        ' Show tool selection prompt, TODO: use select by icon not by text
-        LOCATE 1, 1: COLOR 15
-        PRINT "Select Tool: [0=Draw 1=Line 2=Rect 3=FillRect 4=Circle 5=FillCircle 6-9=Move] Tool=" + STR$(selectedTool) + " ";
-
         currentKey = WaitForKey()
+        
         SELECT CASE ASC(currentKey)
             CASE 0 ' Extended key
-              SELECT CASE ASC(RIGHT$(currentKey, 1))
-                  CASE %KEY_LEFT_ARROW ' Left Arrow
-                      selectedTool = (selectedTool - 1 + %NUM_TOOLS) MOD %NUM_TOOLS
-                  CASE %KEY_RIGHT_ARROW ' Right Arrow
-                      selectedTool = (selectedTool + 1) MOD %NUM_TOOLS
-              END SELECT
+                ' Clear old selection highlight before moving
+                iconX = %PREVIEW_X + (selectedTool MOD 2) * 20
+                iconY = %PREVIEW_Y + ((%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP) + 20 + (selectedTool \ 2) * 20
+                DrawIcon iconX, iconY, toolIcons(selectedTool), %FALSE
+                
+                SELECT CASE ASC(RIGHT$(currentKey, 1))
+                    CASE %KEY_LEFT_ARROW ' Left Arrow
+                        selectedTool = (selectedTool - 1 + %NUM_TOOLS) MOD %NUM_TOOLS
+                    CASE %KEY_RIGHT_ARROW ' Right Arrow
+                        selectedTool = (selectedTool + 1) MOD %NUM_TOOLS
+                    CASE %KEY_UP_ARROW ' Up Arrow
+                        IF selectedTool >= 2 THEN selectedTool = selectedTool - 2
+                    CASE %KEY_DOWN_ARROW ' Down Arrow  
+                        IF selectedTool < %NUM_TOOLS - 2 THEN selectedTool = selectedTool + 2
+                END SELECT
+                
+                ' Draw new selection highlight after moving
+                iconX = %PREVIEW_X + (selectedTool MOD 2) * 20
+                iconY = %PREVIEW_Y + ((%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP) + 20 + (selectedTool \ 2) * 20
+                DrawIcon iconX, iconY, toolIcons(selectedTool), %TRUE
             CASE 13 ' Enter
                 EXIT DO
             CASE 27 ' ESC
@@ -501,6 +567,8 @@ SUB HandleToolSelection (selectedTool AS INTEGER)
                 EXIT DO
         END SELECT
     LOOP
+    
+    ' Tool selection complete - the DrawUI call will show the final selection
     LOCATE 1, 1: PRINT STRING$(79, " ")
 END SUB
 

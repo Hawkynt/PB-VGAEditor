@@ -1,7 +1,8 @@
 # 🎨 PB-VGAEditor
 
-[![License](https://img.shields.io/badge/License-LGPL_3.0-blue)](https://licenses.nuget.org/LGPL-3.0-or-later)
+![License](https://img.shields.io/github/license/Hawkynt/PB-VGAEditor)
 [![PowerBASIC](https://img.shields.io/badge/powerbasic%203.5-100%25-purple.svg)](https://en.wikipedia.org/wiki/PowerBASIC)
+[![Last Commit](https://img.shields.io/github/last-commit/Hawkynt/PB-VGAEditor?branch=main)![Activity](https://img.shields.io/github/commit-activity/y/Hawkynt/PB-VGAEditor?branch=main)](https://github.com/Hawkynt/PB-VGAEditor/commits/main)
 
 > A mouse-driven sprite editor for DOS, created for the [PB-Svga Library](https://github.com/Hawkynt/PB-SvgaLibrary).
 

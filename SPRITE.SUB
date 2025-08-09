@@ -97,14 +97,21 @@ SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, spr 
     LOCATE 2, 1: COLOR 5
     PRINT "ESC=Exit  N=New  L=Load  S=Save  INS=Line-Mode  T=Tools"
     
-    ' Draw current drawing color preview
+    ' Draw current drawing color preview with selection highlight
     LINE (15, 33)-STEP(%GRID_X_STEP, %GRID_Y_STEP), drawingColor, BF
+    LINE (14, 32)-STEP(%GRID_X_STEP + 2, %GRID_Y_STEP + 2), 15, B ' White highlight
     LOCATE 3, 6: COLOR drawingColor: PRINT "Color"
 
-    ' Draw color palette grid
+    ' Draw color palette grid with selection highlight
     FOR y = 0 TO 3
         FOR x = 0 TO 3
-            LINE (%COLOR_GRID_X + x * (%COLOR_GRID_STEP + 2), %COLOR_GRID_Y + y * (%COLOR_GRID_STEP + 2))-(%COLOR_GRID_X + x * (%COLOR_GRID_STEP + 2) + %COLOR_GRID_STEP, %COLOR_GRID_Y + y * (%COLOR_GRID_STEP + 2) + %COLOR_GRID_STEP), (y * 4) + x, BF
+            DIM colorIndex AS INTEGER
+            colorIndex = (y * 4) + x
+            LINE (%COLOR_GRID_X + x * (%COLOR_GRID_STEP + 2), %COLOR_GRID_Y + y * (%COLOR_GRID_STEP + 2))-(%COLOR_GRID_X + x * (%COLOR_GRID_STEP + 2) + %COLOR_GRID_STEP, %COLOR_GRID_Y + y * (%COLOR_GRID_STEP + 2) + %COLOR_GRID_STEP), colorIndex, BF
+            ' Highlight current color
+            IF colorIndex = drawingColor THEN
+                LINE (%COLOR_GRID_X + x * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + y * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
+            END IF
         NEXT x
     NEXT y
 
@@ -159,7 +166,6 @@ SUB MovePixelsLeft (spr AS Sprite, canvas() AS INTEGER)
         canvas(spr.spriteWidth, y) = 0 ' Clear rightmost column
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -175,7 +181,6 @@ SUB MovePixelsRight (spr AS Sprite, canvas() AS INTEGER)
         canvas(0, y) = 0 ' Clear leftmost column
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -191,7 +196,6 @@ SUB MovePixelsUp (spr AS Sprite, canvas() AS INTEGER)
         canvas(x, spr.spriteHeight) = 0 ' Clear bottommost row
     NEXT x
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -207,7 +211,6 @@ SUB MovePixelsDown (spr AS Sprite, canvas() AS INTEGER)
         canvas(x, 0) = 0 ' Clear topmost row
     NEXT x
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -225,7 +228,6 @@ SUB DrawRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVA
         IF x2 >= 0 AND x2 <= spr.spriteWidth AND y >= 0 AND y <= spr.spriteHeight THEN canvas(x2, y) = drawColor
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -240,7 +242,6 @@ SUB DrawFilledRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER
         NEXT x
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -270,7 +271,6 @@ SUB DrawCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BY
         x = x + 1
     LOOP
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -300,7 +300,6 @@ SUB DrawFilledCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEG
         x = x + 1
     LOOP
     UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
 END SUB
 
 '******************************************************************************
@@ -321,3 +320,4 @@ SUB DrawIcon (BYVAL drawX AS INTEGER, BYVAL drawY AS INTEGER, BYVAL iconData AS 
         LINE (drawX - 1, drawY - 1)-(drawX + 8, drawY + 8), 0, B
     END IF
 END SUB
+

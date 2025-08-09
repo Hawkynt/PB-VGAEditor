@@ -1,0 +1,93 @@
+' PREVIEW.SUB - Preview functions for shape tools
+
+'******************************************************************************
+'* SUB: ShowRectanglePreview
+'* Purpose: Shows preview of rectangle by drawing grid cells with selected color.
+'******************************************************************************
+SUB ShowRectanglePreview (BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
+    ' Make sure coordinates are in proper order
+    IF x1 > x2 THEN SWAP x1, x2
+    IF y1 > y2 THEN SWAP y1, y2
+    
+    FOR x = x1 TO x2
+        CanvasToScreen x, y1, screenX, screenY
+        LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), drawColor, B
+        IF y2 <> y1 THEN
+            CanvasToScreen x, y2, screenX, screenY
+            LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), drawColor, B
+        END IF
+    NEXT x
+    FOR y = y1 TO y2
+        CanvasToScreen x1, y, screenX, screenY
+        LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), drawColor, B
+        IF x2 <> x1 THEN
+            CanvasToScreen x2, y, screenX, screenY
+            LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), drawColor, B
+        END IF
+    NEXT y
+END SUB
+
+'******************************************************************************
+'* SUB: ClearRectanglePreview
+'* Purpose: Clears rectangle preview by redrawing grid cells normally.
+'******************************************************************************
+SUB ClearRectanglePreview (BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
+    ' Make sure coordinates are in proper order
+    IF x1 > x2 THEN SWAP x1, x2
+    IF y1 > y2 THEN SWAP y1, y2
+    
+    FOR x = x1 TO x2
+        CanvasToScreen x, y1, screenX, screenY
+        LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
+        IF y2 <> y1 THEN
+            CanvasToScreen x, y2, screenX, screenY
+            LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
+        END IF
+    NEXT x
+    FOR y = y1 TO y2
+        CanvasToScreen x1, y, screenX, screenY
+        LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
+        IF x2 <> x1 THEN
+            CanvasToScreen x2, y, screenX, screenY
+            LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
+        END IF
+    NEXT y
+END SUB
+
+'******************************************************************************
+'* SUB: ShowFilledRectanglePreview
+'* Purpose: Shows preview of filled rectangle by drawing all grid cells.
+'******************************************************************************
+SUB ShowFilledRectanglePreview (BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
+    ' Make sure coordinates are in proper order
+    IF x1 > x2 THEN SWAP x1, x2
+    IF y1 > y2 THEN SWAP y1, y2
+    
+    FOR y = y1 TO y2
+        FOR x = x1 TO x2
+            CanvasToScreen x, y, screenX, screenY
+            LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), drawColor, B
+        NEXT x
+    NEXT y
+END SUB
+
+'******************************************************************************
+'* SUB: ClearFilledRectanglePreview
+'* Purpose: Clears filled rectangle preview by redrawing grid cells normally.
+'******************************************************************************
+SUB ClearFilledRectanglePreview (BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
+    ' Make sure coordinates are in proper order
+    IF x1 > x2 THEN SWAP x1, x2
+    IF y1 > y2 THEN SWAP y1, y2
+    
+    FOR y = y1 TO y2
+        FOR x = x1 TO x2
+            CanvasToScreen x, y, screenX, screenY
+            LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
+        NEXT x
+    NEXT y
+END SUB
