@@ -156,18 +156,19 @@ SUB ReadPCXFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
     spriteWidth = header.Xmax - header.Xmin + 1
     spriteHeight = header.Ymax - header.Ymin + 1
 
-    ' Center the image on the canvas
-    startX = (spr.spriteWidth - spriteWidth) / 2
-    startY = (spr.spriteHeight - spriteHeight) / 2
+    ' Load at origin like other formats
+    startX = 0
+    startY = 0
 
     ' --- Read Image Data with RLE Decompression ---
     FOR y = 0 TO spriteHeight - 1
         x = 0
         DO WHILE x < spriteWidth
-            dataByte = INPUT$(1, #fileNum)
+            GET #fileNum, , dataByte
             IF (ASC(dataByte) AND &HC0) = &HC0 THEN
                 runCount = ASC(dataByte) AND &H3F
-                runValue = ASC(INPUT$(1, #fileNum))
+                GET #fileNum, , dataByte
+                runValue = ASC(dataByte)
             ELSE
                 runCount = 1
                 runValue = ASC(dataByte)
