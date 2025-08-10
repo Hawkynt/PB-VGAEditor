@@ -1,24 +1,53 @@
 ' .ICO File Format Module
 
-
-TYPE ICONDIR
-    idReserved  AS INTEGER
-    idType      AS INTEGER
-    idCount     AS INTEGER
+TYPE Sprite
+    spriteWidth AS INTEGER
+    spriteHeight AS INTEGER
+    boundingBoxX1 AS INTEGER
+    boundingBoxY1 AS INTEGER
+    boundingBoxX2 AS INTEGER
+    boundingBoxY2 AS INTEGER
 END TYPE
 
-TYPE ICONDIRENTRY
-    bWidth          AS STRING * 1
-    bHeight         AS STRING * 1
-    bColorCount     AS STRING * 1
-    bReserved       AS STRING * 1
-    wPlanes         AS INTEGER
-    wBitCount       AS INTEGER
-    dwBytesInRes    AS LONG
-    dwImageOffset   AS LONG
+TYPE IconDir
+    idReserved AS INTEGER
+    idType     AS INTEGER  
+    idCount    AS INTEGER
 END TYPE
 
-TYPE BITMAPINFOHEADER
+TYPE IconDirEntry
+    bWidth      AS STRING * 1
+    bHeight     AS STRING * 1
+    bColorCount AS STRING * 1
+    bReserved   AS STRING * 1
+    wPlanes     AS INTEGER
+    wBitCount   AS INTEGER
+    dwBytesInRes AS LONG
+    dwImageOffset AS LONG
+END TYPE
+
+'******************************************************************************
+'* FUNCTION: SwapWord
+'* Purpose: Swaps byte order of a 16-bit word (fast bit manipulation)
+'******************************************************************************
+FUNCTION SwapWord (value AS INTEGER) AS INTEGER
+    SwapWord = ((value AND &HFF) * 256) + ((value \ 256) AND &HFF)
+END FUNCTION
+
+'******************************************************************************
+'* FUNCTION: SwapDWord
+'* Purpose: Swaps byte order of a 32-bit dword
+'******************************************************************************  
+FUNCTION SwapDWord (value AS LONG) AS LONG
+    DIM b1 AS LONG, b2 AS LONG, b3 AS LONG, b4 AS LONG
+    b1 = value AND &HFF
+    b2 = (value \ 256) AND &HFF
+    b3 = (value \ 65536) AND &HFF  
+    b4 = (value \ 16777216) AND &HFF
+    SwapDWord = (b1 * &H1000000) + (b2 * &H10000) + (b3 * &H100) + b4
+END FUNCTION
+
+TYPE IconBitmapInfoHeader
     biSize          AS LONG
     biWidth         AS LONG
     biHeight        AS LONG
@@ -35,32 +64,30 @@ END TYPE
 '******************************************************************************
 '* SUB: WriteICOFile
 '* Purpose: Writes the canvas to a 16-color .ICO file.
-'*          Trims transparent pixels from the edges.
+'*          Trims transparent pixels from the edges and creates proper mask.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path for the new file.
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
 SUB WriteICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
-    DIM idir AS ICONDIR
-    DIM ide AS ICONDIRENTRY
-    DIM bmih AS BITMAPINFOHEADER
+    DIM iconDir AS IconDir
+    DIM iconEntry AS IconDirEntry
+    DIM bmpInfo AS IconBitmapInfoHeader
     DIM fileNum AS INTEGER
-    DIM x AS INTEGER
-    DIM y AS INTEGER
-    DIM spriteWidth AS INTEGER
-    DIM spriteHeight AS INTEGER
-    DIM xorMaskRowSize AS INTEGER
-    DIM andMaskRowSize AS INTEGER
-    DIM xorMaskSize AS LONG
-    DIM andMaskSize AS LONG
+    DIM x AS INTEGER, y AS INTEGER
+    DIM spriteWidth AS INTEGER, spriteHeight AS INTEGER
+    DIM imageRowSize AS LONG, maskRowSize AS LONG
+    DIM imageDataSize AS LONG, maskDataSize AS LONG
+    DIM totalImageSize AS LONG
     DIM vgaPalette(0 TO 15) AS LONG
     DIM byteVal AS STRING * 1
-    DIM p1 AS INTEGER
-    DIM p2 AS INTEGER
-    DIM bitIndex AS INTEGER
-    DIM currentBit AS INTEGER
-    DIM paddingBytes AS STRING
+    DIM p1 AS INTEGER, p2 AS INTEGER
+    DIM maskByte AS INTEGER
+    DIM bitPos AS INTEGER
+    DIM paddingNeeded AS INTEGER, maskPaddingNeeded AS INTEGER
+    DIM i AS INTEGER, j AS INTEGER
+    DIM doubleHeight AS LONG, totalSize AS LONG
     errorMessage = ""
 
     ' Check if there is anything to save
@@ -69,47 +96,132 @@ SUB WriteICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
     spriteWidth = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
     spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
 
-    ' Row sizes must be padded to a multiple of 4 bytes
-    xorMaskRowSize = INT((spriteWidth * 4 + 31) / 32) * 4
-    andMaskRowSize = INT((spriteWidth + 31) / 32) * 4
-    xorMaskSize = xorMaskRowSize * spriteHeight
-    andMaskSize = andMaskRowSize * spriteHeight
+    ' ICO image data rows padded to 4-byte boundary
+    ' 4bpp image: 2 pixels per byte
+    imageRowSize = ((spriteWidth * 4 + 31) \ 32) * 4
+    imageDataSize = imageRowSize * spriteHeight
+
+    ' 1bpp mask: 8 pixels per byte  
+    maskRowSize = ((spriteWidth + 31) \ 32) * 4
+    maskDataSize = maskRowSize * spriteHeight
+
+    totalImageSize = 40 + (16 * 4) + imageDataSize + maskDataSize
 
     ' --- Fill Icon Directory ---
-    idir.idReserved = 0
-    idir.idType = 1 ' Icon
-    idir.idCount = 1 ' One image
+    iconDir.idReserved = 0
+    iconDir.idType = 1
+    iconDir.idCount = 1
 
     ' --- Fill Icon Directory Entry ---
-    ide.bWidth = CHR$(spriteWidth)
-    ide.bHeight = CHR$(spriteHeight)
-    ide.bColorCount = CHR$(16)
-    ide.bReserved = CHR$(0)
-    ide.wPlanes = 1
-    ide.wBitCount = 4
-    ide.dwBytesInRes = 40 + (16 * 4) + xorMaskSize + andMaskSize
-    ide.dwImageOffset = 6 + 16 ' Offset to BITMAPINFOHEADER
+    IF spriteWidth > 255 THEN spriteWidth = 255
+    IF spriteHeight > 255 THEN spriteHeight = 255
+    iconEntry.bWidth = CHR$(spriteWidth AND &HFF)
+    iconEntry.bHeight = CHR$(spriteHeight AND &HFF)
+    iconEntry.bColorCount = CHR$(16)
+    iconEntry.bReserved = CHR$(0)
+    iconEntry.wPlanes = 1
+    iconEntry.wBitCount = 4
+    iconEntry.dwBytesInRes = totalImageSize
+    iconEntry.dwImageOffset = 6 + 16
 
-    ' --- Fill DIB Header ---
-    bmih.biSize = 40
-    bmih.biWidth = spriteWidth
-    bmih.biHeight = spriteHeight * 2 ' Height is doubled for XOR and AND masks
-    bmih.biPlanes = 1
-    bmih.biBitCount = 4
-    bmih.biCompression = 0
-    bmih.biSizeImage = xorMaskSize + andMaskSize
-    bmih.biXPelsPerMeter = 0
-    bmih.biYPelsPerMeter = 0
-    bmih.biClrUsed = 16
-    bmih.biClrImportant = 16
+    ' --- Fill Bitmap Info Header (double height for image + mask) ---
+    bmpInfo.biSize = 40
+    bmpInfo.biWidth = spriteWidth
+    bmpInfo.biHeight = spriteHeight * 2
+    bmpInfo.biPlanes = 1
+    bmpInfo.biBitCount = 4
+    bmpInfo.biCompression = 0
+    bmpInfo.biSizeImage = imageDataSize + maskDataSize
+    bmpInfo.biXPelsPerMeter = 0
+    bmpInfo.biYPelsPerMeter = 0
+    bmpInfo.biClrUsed = 16
+    bmpInfo.biClrImportant = 16
 
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
 
-    ' --- Write Headers ---
-    PUT #fileNum, , idir
-    PUT #fileNum, , ide
-    PUT #fileNum, , bmih
+    ' --- Write Icon Directory (little-endian format) ---
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal ' idReserved low
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal ' idReserved high
+    byteVal = CHR$(1) : PUT #fileNum, , byteVal ' idType low  
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal ' idType high
+    byteVal = CHR$(1) : PUT #fileNum, , byteVal ' idCount low
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal ' idCount high
+    
+    ' --- Write Icon Directory Entry ---
+    byteVal = CHR$(spriteWidth AND &HFF) : PUT #fileNum, , byteVal   ' bWidth
+    byteVal = CHR$(spriteHeight AND &HFF) : PUT #fileNum, , byteVal  ' bHeight
+    byteVal = CHR$(16) : PUT #fileNum, , byteVal                     ' bColorCount
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal                      ' bReserved
+    byteVal = CHR$(1) : PUT #fileNum, , byteVal                      ' wPlanes low
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal                      ' wPlanes high
+    byteVal = CHR$(4) : PUT #fileNum, , byteVal                      ' wBitCount low
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal                      ' wBitCount high
+    ' dwBytesInRes (little-endian LONG)
+    byteVal = CHR$(totalImageSize AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$((totalImageSize \ 256) AND &HFF) : PUT #fileNum, , byteVal  
+    byteVal = CHR$((totalImageSize \ 65536) AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$((totalImageSize \ 16777216) AND &HFF) : PUT #fileNum, , byteVal
+    ' dwImageOffset (little-endian LONG)
+    byteVal = CHR$(22) : PUT #fileNum, , byteVal ' 6 + 16 = 22
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+
+    ' --- Write Bitmap Info Header (little-endian) ---
+    ' biSize = 40
+    byteVal = CHR$(40) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biWidth
+    byteVal = CHR$(spriteWidth AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biHeight = spriteHeight * 2
+    doubleHeight = CLNG(spriteHeight) * 2
+    byteVal = CHR$(doubleHeight AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$((doubleHeight \ 256) AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biPlanes = 1
+    byteVal = CHR$(1) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biBitCount = 4
+    byteVal = CHR$(4) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biCompression = 0
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biSizeImage
+    totalSize = imageDataSize + maskDataSize
+    byteVal = CHR$(totalSize AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$((totalSize \ 256) AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$((totalSize \ 65536) AND &HFF) : PUT #fileNum, , byteVal
+    byteVal = CHR$((totalSize \ 16777216) AND &HFF) : PUT #fileNum, , byteVal
+    ' biXPelsPerMeter = 0
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biYPelsPerMeter = 0
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biClrUsed = 16
+    byteVal = CHR$(16) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    ' biClrImportant = 16
+    byteVal = CHR$(16) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
+    byteVal = CHR$(0) : PUT #fileNum, , byteVal
 
     ' --- Write Palette (BGR format) ---
     vgaPalette(0) = &H000000: vgaPalette(1) = &HAA0000: vgaPalette(2) = &H00AA00: vgaPalette(3) = &HAAAA00
@@ -120,36 +232,60 @@ SUB WriteICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
         PUT #fileNum, , vgaPalette(x)
     NEXT x
 
-    ' --- Write XOR (Color) Mask (upside-down) ---
+    ' --- Write Image Data (4bpp, upside-down) ---
     FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
         FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2 STEP 2
             p1 = canvas(x, y)
-            IF x + 1 > spr.boundingBoxX2 THEN p2 = 0 ELSE p2 = canvas(x + 1, y)
+            IF x + 1 > spr.boundingBoxX2 THEN
+                p2 = 0
+            ELSE
+                p2 = canvas(x + 1, y)
+            END IF
             byteVal = CHR$((p1 * 16) + p2)
             PUT #fileNum, , byteVal
         NEXT x
-        IF xorMaskRowSize - (spriteWidth / 2) > 0 THEN
-            paddingBytes = STRING$(xorMaskRowSize - (spriteWidth / 2), 0)
-            PUT #fileNum, , paddingBytes
+        ' Pad row to 4-byte boundary
+        paddingNeeded = imageRowSize - ((spriteWidth + 1) \ 2)
+        IF paddingNeeded > 0 THEN
+            FOR i = 1 TO paddingNeeded
+                byteVal = CHR$(0)
+                PUT #fileNum, , byteVal
+            NEXT i
         END IF
     NEXT y
 
-    ' --- Write AND (Opacity) Mask (upside-down) ---
+    ' --- Write Mask Data (1bpp, upside-down) ---
     FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
         FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2 STEP 8
-            byteVal = CHR$(0)
-            FOR bitIndex = 0 TO 7
-                currentBit = 0
-                IF x + bitIndex <= spr.boundingBoxX2 THEN
-                    IF canvas(x + bitIndex, y) = 0 THEN currentBit = 1
+            maskByte = 0
+            FOR bitPos = 0 TO 7
+                IF (x + bitPos) <= spr.boundingBoxX2 THEN
+                    ' Transparent pixels (0) get mask bit = 1, opaque pixels get mask bit = 0
+                    IF canvas(x + bitPos, y) = 0 THEN
+                        ' Set bit using lookup (MSB first): bit 0=128, 1=64, 2=32, 3=16, 4=8, 5=4, 6=2, 7=1
+                        SELECT CASE bitPos
+                        CASE 0: maskByte = maskByte OR 128
+                        CASE 1: maskByte = maskByte OR 64
+                        CASE 2: maskByte = maskByte OR 32
+                        CASE 3: maskByte = maskByte OR 16
+                        CASE 4: maskByte = maskByte OR 8
+                        CASE 5: maskByte = maskByte OR 4
+                        CASE 6: maskByte = maskByte OR 2
+                        CASE 7: maskByte = maskByte OR 1
+                        END SELECT
+                    END IF
                 END IF
-                byteVal = CHR$(ASC(byteVal) OR (currentBit * (2 ^ (7 - bitIndex))))
-            NEXT bitIndex
+            NEXT bitPos
+            byteVal = CHR$(maskByte)
             PUT #fileNum, , byteVal
         NEXT x
-        IF andMaskRowSize - INT((spriteWidth + 7) / 8) > 0 THEN
-            paddingBytes = STRING$(andMaskRowSize - INT((spriteWidth + 7) / 8), 0)
-            PUT #fileNum, , paddingBytes
+        ' Pad mask row to 4-byte boundary
+        maskPaddingNeeded = maskRowSize - ((spriteWidth + 7) \ 8)
+        IF maskPaddingNeeded > 0 THEN
+            FOR j = 1 TO maskPaddingNeeded
+                byteVal = CHR$(0)
+                PUT #fileNum, , byteVal
+            NEXT j
         END IF
     NEXT y
 
@@ -165,105 +301,183 @@ END SUB
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
 SUB ReadICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
-    DIM idir AS ICONDIR
-    DIM ide(255) AS ICONDIRENTRY
-    DIM bmih AS BITMAPINFOHEADER
+    DIM iconDir AS IconDir
+    DIM iconEntry AS IconDirEntry
+    DIM bmpInfo AS IconBitmapInfoHeader
     DIM fileNum AS INTEGER
-    DIM i AS INTEGER
-    DIM bestEntry AS INTEGER
-    DIM bestRes AS INTEGER
-    DIM x AS INTEGER
-    DIM y AS INTEGER
-    DIM spriteWidth AS INTEGER
-    DIM spriteHeight AS INTEGER
-    DIM startX AS INTEGER
-    DIM startY AS INTEGER
-    DIM xorMaskRowSize AS INTEGER
-    DIM andMaskRowSize AS INTEGER
+    DIM x AS LONG, y AS LONG
+    DIM spriteWidth AS LONG, spriteHeight AS LONG
+    DIM imageRowSize AS LONG, maskRowSize AS LONG
+    DIM startX AS LONG, startY AS LONG
     DIM byteVal AS STRING * 1
-    DIM p1 AS INTEGER
-    DIM p2 AS INTEGER
-    DIM andByte AS STRING * 1
-    DIM bitIndex AS INTEGER
+    DIM p1 AS INTEGER, p2 AS INTEGER
+    DIM maskByte AS INTEGER, bitPos AS INTEGER
+    DIM dx AS LONG, dy AS LONG
+    DIM curPos AS LONG
+    DIM byte1 AS STRING * 1, byte2 AS STRING * 1
+    DIM idReserved AS INTEGER, idType AS INTEGER, idCount AS INTEGER
+    DIM wPlanes AS INTEGER, wBitCount AS INTEGER
+    DIM dwBytesInRes AS LONG, dwImageOffset AS LONG
+    DIM b1 AS STRING * 1, b2 AS STRING * 1, b3 AS STRING * 1, b4 AS STRING * 1
+    DIM biSize AS LONG, biWidth AS LONG, biHeight AS LONG
+    DIM biPlanes AS INTEGER, biBitCount AS INTEGER, biCompression AS LONG
     errorMessage = ""
 
     fileNum = FREEFILE
+    ON ERROR RESUME NEXT
     OPEN fullPath FOR BINARY AS #fileNum
-
-    ' --- Read Icon Directory Header ---
-    GET #fileNum, , idir
-
-    IF idir.idType <> 1 THEN
-        errorMessage = "Not a valid ICO file."
-        CLOSE #fileNum
+    IF ERR <> 0 THEN
+        errorMessage = "Cannot open file: " + fullPath
+        ERRCLEAR : ON ERROR GOTO 0
         EXIT SUB
     END IF
+    ON ERROR GOTO 0
 
-    ' --- Read All Icon Directory Entries ---
-    FOR i = 0 TO idir.idCount - 1
-        GET #fileNum, , ide(i)
-    NEXT i
-
-    ' --- Find the Best-Fitting 16-Color Image ---
-    bestEntry = -1
-    bestRes = 0
-    FOR i = 0 TO idir.idCount - 1
-        spriteWidth = ASC(ide(i).bWidth)
-        spriteHeight = ASC(ide(i).bHeight)
-        IF ide(i).wBitCount = 4 AND spriteWidth <= spr.spriteWidth AND spriteHeight <= spr.spriteHeight THEN
-            IF spriteWidth * spriteHeight > bestRes THEN
-                bestRes = spriteWidth * spriteHeight
-                bestEntry = i
-            END IF
-        END IF
-    NEXT i
-
-    IF bestEntry = -1 THEN
-        errorMessage = "No suitable 16-color icon found in file."
-        CLOSE #fileNum
-        EXIT SUB
+    ' --- Read Icon Directory (little-endian) ---
+    ' Read idReserved (2 bytes little-endian)
+    GET #fileNum, , byte1 : GET #fileNum, , byte2
+    idReserved = ASC(byte1) + (ASC(byte2) * 256)
+    
+    ' Read idType (2 bytes little-endian)  
+    GET #fileNum, , byte1 : GET #fileNum, , byte2
+    idType = ASC(byte1) + (ASC(byte2) * 256)
+    
+    ' Read idCount (2 bytes little-endian)
+    GET #fileNum, , byte1 : GET #fileNum, , byte2
+    idCount = ASC(byte1) + (ASC(byte2) * 256)
+    
+    ' Early validation to prevent overflow from invalid values
+    IF idReserved <> 0 OR idType <> 1 OR idCount < 1 OR idCount > 100 THEN
+        errorMessage = "Not a valid ICO file (header check failed)."
+        CLOSE #fileNum : EXIT SUB
     END IF
 
-    ' --- Seek to the Best Image's Data and Read its DIB Header ---
-    SEEK fileNum, ide(bestEntry).dwImageOffset + 1
-    GET #fileNum, , bmih
+    ' --- Read first Icon Directory Entry (little-endian) ---
+    GET #fileNum, , b1 : spriteWidth = ASC(b1)     ' bWidth
+    GET #fileNum, , b1 : spriteHeight = ASC(b1)    ' bHeight  
+    GET #fileNum, , b1                             ' bColorCount (skip)
+    GET #fileNum, , b1                             ' bReserved (skip)
+    GET #fileNum, , b1 : GET #fileNum, , b2        ' wPlanes
+    wPlanes = ASC(b1) + (ASC(b2) * 256)
+    GET #fileNum, , b1 : GET #fileNum, , b2        ' wBitCount
+    wBitCount = ASC(b1) + (ASC(b2) * 256)
+    GET #fileNum, , b1 : GET #fileNum, , b2 : GET #fileNum, , b3 : GET #fileNum, , b4  ' dwBytesInRes
+    dwBytesInRes = ASC(b1) + (CLNG(ASC(b2)) * 256) + (CLNG(ASC(b3)) * 65536) + (CLNG(ASC(b4)) * 16777216)
+    GET #fileNum, , b1 : GET #fileNum, , b2 : GET #fileNum, , b3 : GET #fileNum, , b4  ' dwImageOffset
+    dwImageOffset = ASC(b1) + (CLNG(ASC(b2)) * 256) + (CLNG(ASC(b3)) * 65536) + (CLNG(ASC(b4)) * 16777216)
+    
+    IF spriteWidth = 0 THEN spriteWidth = 256
+    IF spriteHeight = 0 THEN spriteHeight = 256
 
-    spriteWidth = ASC(ide(bestEntry).bWidth)
-    spriteHeight = ASC(ide(bestEntry).bHeight)
-    xorMaskRowSize = INT((spriteWidth * 4 + 31) / 32) * 4
-    andMaskRowSize = INT((spriteWidth + 31) / 32) * 4
+    ' Validate reasonable dimensions to prevent overflow
+    IF spriteWidth > 1024 OR spriteHeight > 1024 THEN
+        errorMessage = "ICO dimensions too large (max 1024x1024)."
+        CLOSE #fileNum : EXIT SUB
+    END IF
 
-    ' Center the image on the canvas
-    startX = (spr.spriteWidth - spriteWidth) / 2
-    startY = (spr.spriteHeight - spriteHeight) / 2
+    IF wBitCount <> 4 THEN
+        errorMessage = "Only 4bpp (16-color) ICO supported."
+        CLOSE #fileNum : EXIT SUB
+    END IF
 
-    ' --- Seek to XOR Mask (Color Data) ---
-    SEEK fileNum, ide(bestEntry).dwImageOffset + bmih.biSize + (16 * 4) + 1
+    ' Validate image offset to prevent seeking to invalid locations
+    IF dwImageOffset < 22 OR dwImageOffset > LOF(fileNum) THEN
+        errorMessage = "Invalid ICO image offset."
+        CLOSE #fileNum : EXIT SUB
+    END IF
 
-    ' --- Read XOR (Color) and AND (Opacity) Masks ---
-    FOR y = spriteHeight - 1 TO 0 STEP -1
+    ' --- Seek to image data ---
+    ' dwImageOffset points to start of BitmapInfoHeader  
+    ' Image data is after BitmapInfoHeader (40 bytes) + Palette (64 bytes)
+    curPos = dwImageOffset + 40 + (16 * 4)
+    SEEK fileNum, curPos
+
+    imageRowSize = ((spriteWidth * 4 + 31) \ 32) * 4
+    maskRowSize = ((spriteWidth + 31) \ 32) * 4
+
+    ' ICO files contain only the sprite data (trimmed), place at top-left
+    startX = 0
+    startY = 0
+    
+    ' Update sprite bounding box to match the ICO dimensions
+    spr.boundingBoxX1 = 0
+    spr.boundingBoxY1 = 0
+    spr.boundingBoxX2 = spriteWidth - 1
+    spr.boundingBoxY2 = spriteHeight - 1
+
+    ' --- Read Image Data (4bpp, upside-down) ---
+    FOR y = 0 TO spriteHeight - 1
+        dy = startY + (spriteHeight - 1 - y)
         FOR x = 0 TO spriteWidth - 1 STEP 2
-            byteVal = INPUT$(1, #fileNum)
-            p1 = ASC(byteVal) \ 16
-            p2 = ASC(byteVal) AND 15
-            IF (startX + x) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN canvas(startX + x, startY + y) = p1
-            IF (startX + x + 1) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN canvas(startX + x + 1, startY + y) = p2
+            ' Read one byte containing two 4-bit pixels
+            ON ERROR RESUME NEXT
+            GET #fileNum, , byteVal
+            IF ERR <> 0 OR LEN(byteVal) <> 1 THEN
+                errorMessage = "Unexpected EOF in ICO image data."
+                ERRCLEAR : ON ERROR GOTO 0
+                CLOSE #fileNum : EXIT SUB
+            END IF
+            ON ERROR GOTO 0
+            
+            p1 = ASC(byteVal) \ 16      ' High nibble
+            p2 = ASC(byteVal) AND 15    ' Low nibble
+
+            ' Store left pixel
+            dx = startX + x
+            IF dx >= 0 AND dx < spr.spriteWidth AND dy >= 0 AND dy < spr.spriteHeight THEN
+                canvas(dx, dy) = p1
+            END IF
+
+            ' Store right pixel if within bounds
+            IF x + 1 < spriteWidth THEN
+                dx = startX + x + 1
+                IF dx >= 0 AND dx < spr.spriteWidth AND dy >= 0 AND dy < spr.spriteHeight THEN
+                    canvas(dx, dy) = p2
+                END IF
+            END IF
         NEXT x
-        IF xorMaskRowSize - (spriteWidth / 2) > 0 THEN SEEK fileNum, LOF(fileNum) - (LOF(fileNum) - (SEEK(fileNum) + (xorMaskRowSize - (spriteWidth / 2))))
+        
+        ' Skip row padding
+        curPos = SEEK(fileNum) + (imageRowSize - ((spriteWidth + 1) \ 2))
+        SEEK fileNum, curPos
     NEXT y
 
-    FOR y = spriteHeight - 1 TO 0 STEP -1
+    ' --- Read and Apply Mask Data (1bpp, upside-down) ---
+    FOR y = 0 TO spriteHeight - 1
+        dy = startY + (spriteHeight - 1 - y)
         FOR x = 0 TO spriteWidth - 1 STEP 8
-            andByte = INPUT$(1, #fileNum)
-            FOR bitIndex = 0 TO 7
-                IF (ASC(andByte) AND (2 ^ (7 - bitIndex))) <> 0 THEN
-                    IF (startX + x + bitIndex) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN
-                        canvas(startX + x + bitIndex, startY + y) = 0
+            ON ERROR RESUME NEXT
+            GET #fileNum, , byteVal
+            IF ERR <> 0 OR LEN(byteVal) <> 1 THEN
+                errorMessage = "Unexpected EOF in ICO mask data."
+                ERRCLEAR : ON ERROR GOTO 0
+                CLOSE #fileNum : EXIT SUB
+            END IF
+            ON ERROR GOTO 0
+            
+            maskByte = ASC(byteVal)
+            FOR bitPos = 0 TO 7
+                IF (x + bitPos) < spriteWidth THEN
+                    dx = startX + x + bitPos
+                    IF dx >= 0 AND dx < spr.spriteWidth AND dy >= 0 AND dy < spr.spriteHeight THEN
+                        ' If mask bit is 1, pixel is transparent  
+                        ' Check bit using simple shift: bit 0=128, 1=64, 2=32, etc.
+                        IF bitPos = 0 AND (maskByte AND 128) <> 0 THEN canvas(dx, dy) = 0
+                        IF bitPos = 1 AND (maskByte AND 64) <> 0 THEN canvas(dx, dy) = 0
+                        IF bitPos = 2 AND (maskByte AND 32) <> 0 THEN canvas(dx, dy) = 0
+                        IF bitPos = 3 AND (maskByte AND 16) <> 0 THEN canvas(dx, dy) = 0
+                        IF bitPos = 4 AND (maskByte AND 8) <> 0 THEN canvas(dx, dy) = 0
+                        IF bitPos = 5 AND (maskByte AND 4) <> 0 THEN canvas(dx, dy) = 0
+                        IF bitPos = 6 AND (maskByte AND 2) <> 0 THEN canvas(dx, dy) = 0
+                        IF bitPos = 7 AND (maskByte AND 1) <> 0 THEN canvas(dx, dy) = 0
                     END IF
                 END IF
-            NEXT bitIndex
+            NEXT bitPos
         NEXT x
-        IF andMaskRowSize - INT((spriteWidth + 7) / 8) > 0 THEN SEEK fileNum, LOF(fileNum) - (LOF(fileNum) - (SEEK(fileNum) + (andMaskRowSize - INT((spriteWidth + 7) / 8))))
+        
+        ' Skip mask row padding
+        curPos = SEEK(fileNum) + (maskRowSize - ((spriteWidth + 7) \ 8))
+        SEEK fileNum, curPos
     NEXT y
 
     CLOSE #fileNum
