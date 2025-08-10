@@ -3,3 +3,10 @@ VER >%LOGFILE%
 DATE /D >>%LOGFILE%
 TIME /D >>%LOGFILE%
 FOR %%A IN (*.BAS) DO PBC.EXE -Fnpx -G386 -OZF+ -Ce %%A>>%LOGFILE%
+IF EXIST UNITTEST.EXE GOTO RunUnitTest
+GOTO End
+:RunUnitTest
+ECHO [Info] Found Unit Test Executable >>%LOGFILE%
+UNITTEST.EXE >>%LOGFILE%
+
+:End
