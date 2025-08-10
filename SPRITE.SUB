@@ -48,6 +48,7 @@ SUB RenderCanvas (spr AS Sprite, canvas() AS INTEGER)
             IF canvas(x, y) <> 0 THEN
                 CanvasToScreen x, y, screenX, screenY
                 LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), canvas(x, y), BF
+                LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
                 PSET (x + %PREVIEW_X + 3, y + %PREVIEW_Y), canvas(x, y)
             END IF
         NEXT x
@@ -219,6 +220,10 @@ END SUB
 '******************************************************************************
 SUB DrawRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
+    ' Make sure coordinates are in proper order
+    IF x1 > x2 THEN SWAP x1, x2
+    IF y1 > y2 THEN SWAP y1, y2
+    
     FOR x = x1 TO x2
         IF x >= 0 AND x <= spr.spriteWidth AND y1 >= 0 AND y1 <= spr.spriteHeight THEN canvas(x, y1) = drawColor
         IF x >= 0 AND x <= spr.spriteWidth AND y2 >= 0 AND y2 <= spr.spriteHeight THEN canvas(x, y2) = drawColor
@@ -236,6 +241,10 @@ END SUB
 '******************************************************************************
 SUB DrawFilledRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
+    ' Make sure coordinates are in proper order
+    IF x1 > x2 THEN SWAP x1, x2
+    IF y1 > y2 THEN SWAP y1, y2
+    
     FOR y = y1 TO y2
         FOR x = x1 TO x2
             IF x >= 0 AND x <= spr.spriteWidth AND y >= 0 AND y <= spr.spriteHeight THEN canvas(x, y) = drawColor

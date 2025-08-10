@@ -135,7 +135,7 @@ SUB MainEditorLoop
         LINE (currentX, currentY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), cursorBoxColor, B
         IF cursorBoxColorToggle = 1 THEN cursorBoxColorToggle = 2 ELSE cursorBoxColorToggle = 1
 
-        HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved, selectedTool
+        HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved, selectedTool, currentFileName, toolIcons()
         IF HandleKeyboardInput(drawingColor, isLineMode, isSaved, currentFileName, mainSprite, spriteCanvas(), selectedTool) = %TRUE THEN
             DrawUI drawingColor, currentFileName, mainSprite, selectedTool, toolIcons()
         END IF
@@ -167,7 +167,7 @@ END SUB
 '*   isLineMode (BYVAL INTEGER): Flag for line drawing mode.
 '*   isSaved (BYREF INTEGER): Flag indicating if the file has unsaved changes.
 '******************************************************************************
-SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BYVAL drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, BYVAL selectedTool AS INTEGER)
+SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BYVAL drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, BYVAL selectedTool AS INTEGER, BYVAL currentFileName AS STRING, toolIcons() AS STRING)
     DIM canvasX AS INTEGER
     DIM canvasY AS INTEGER
     DIM screenX AS INTEGER
@@ -188,9 +188,9 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
     IF mouse.button = 1 THEN colorToUse = drawingColor
     IF mouse.button = 2 THEN colorToUse = 0
 
-    IF colorToUse <> -1 THEN
-        SELECT CASE selectedTool
-            CASE %TOOL_DRAW
+    SELECT CASE selectedTool
+        CASE %TOOL_DRAW
+            IF colorToUse <> -1 THEN
                 IF canvas(canvasX, canvasY) <> colorToUse THEN
                     canvas(canvasX, canvasY) = colorToUse
                     isSaved = %FALSE
@@ -213,54 +213,54 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
                     LINE (screenX, screenY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
                     PSET (canvasX + %PREVIEW_X + 3, canvasY + %PREVIEW_Y), colorToUse
                 END IF
-            CASE %TOOL_LINE
-                ' Line drawing will be handled by a separate interactive mode
-            CASE %TOOL_RECTANGLE, %TOOL_FILLED_RECTANGLE, %TOOL_CIRCLE, %TOOL_FILLED_CIRCLE
-                IF mouse.button = 1 THEN
-                    IF isFirstClick = %FALSE THEN
-                        ' Start of drag - record starting position
-                        firstClickX = canvasX
-                        firstClickY = canvasY
-                        lastPreviewX = canvasX
-                        lastPreviewY = canvasY
-                        isFirstClick = %TRUE
-                    ELSE
-                        ' Clear previous preview if mouse moved
-                        IF canvasX <> lastPreviewX OR canvasY <> lastPreviewY THEN
-                            SELECT CASE selectedTool
-                                CASE %TOOL_RECTANGLE: ClearRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
-                                CASE %TOOL_FILLED_RECTANGLE: ClearFilledRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
-                            END SELECT
-                        END IF
-                        ' Show new preview
-                        SELECT CASE selectedTool  
-                            CASE %TOOL_RECTANGLE: ShowRectanglePreview firstClickX, firstClickY, canvasX, canvasY, drawingColor
-                            CASE %TOOL_FILLED_RECTANGLE: ShowFilledRectanglePreview firstClickX, firstClickY, canvasX, canvasY, drawingColor
+            END IF
+        CASE %TOOL_LINE
+            ' Line drawing will be handled by a separate interactive mode
+        CASE %TOOL_RECTANGLE, %TOOL_FILLED_RECTANGLE, %TOOL_CIRCLE, %TOOL_FILLED_CIRCLE
+            IF mouse.button = 1 THEN
+                IF isFirstClick = %FALSE THEN
+                    ' Start of drag - record starting position
+                    firstClickX = canvasX
+                    firstClickY = canvasY
+                    lastPreviewX = canvasX
+                    lastPreviewY = canvasY
+                    isFirstClick = %TRUE
+                ELSE
+                    ' Clear previous preview if mouse moved
+                    IF canvasX <> lastPreviewX OR canvasY <> lastPreviewY THEN
+                        SELECT CASE selectedTool
+                            CASE %TOOL_RECTANGLE: ClearRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
+                            CASE %TOOL_FILLED_RECTANGLE: ClearFilledRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
                         END SELECT
-                        lastPreviewX = canvasX
-                        lastPreviewY = canvasY
                     END IF
-                ELSEIF isFirstClick = %TRUE THEN
-                    ' Mouse released - clear preview and draw final shape
-                    SELECT CASE selectedTool
-                        CASE %TOOL_RECTANGLE: 
-                            ClearRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
-                            DrawRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
-                        CASE %TOOL_FILLED_RECTANGLE: 
-                            ClearFilledRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
-                            DrawFilledRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
-                        CASE %TOOL_CIRCLE: 
-                            DrawCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
-                        CASE %TOOL_FILLED_CIRCLE: 
-                            DrawFilledCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                    ' Show new preview
+                    SELECT CASE selectedTool  
+                        CASE %TOOL_RECTANGLE: ShowRectanglePreview firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                        CASE %TOOL_FILLED_RECTANGLE: ShowFilledRectanglePreview firstClickX, firstClickY, canvasX, canvasY, drawingColor
                     END SELECT
-                    'TODO: refresh whole canvas grid
-                    RenderCanvas spr, canvas()
-                    isSaved = %FALSE
-                    isFirstClick = %FALSE
+                    lastPreviewX = canvasX
+                    lastPreviewY = canvasY
                 END IF
-        END SELECT
-    END IF
+            ELSEIF isFirstClick = %TRUE THEN
+                ' Mouse released - clear preview and draw final shape
+                SELECT CASE selectedTool
+                    CASE %TOOL_RECTANGLE: 
+                        ClearRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
+                        DrawRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                    CASE %TOOL_FILLED_RECTANGLE: 
+                        ClearFilledRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
+                        DrawFilledRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                    CASE %TOOL_CIRCLE: 
+                        DrawCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                    CASE %TOOL_FILLED_CIRCLE: 
+                        DrawFilledCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                END SELECT
+                RenderCanvas spr, canvas()
+                DrawUI drawingColor, currentFileName, spr, selectedTool, toolIcons()
+                isSaved = %FALSE
+                isFirstClick = %FALSE
+            END IF
+    END SELECT
 END SUB
 
 '******************************************************************************
