@@ -1,4 +1,6 @@
-' .ICO File Format Module
+' ICO File Format Module
+' Common Interface: FileIco_Read, FileIco_Write
+' Namespace: FileIco (pseudo-namespace via function prefixes)
 
 TYPE Sprite
     spriteWidth AS INTEGER
@@ -16,10 +18,10 @@ TYPE IconDir
 END TYPE
 
 TYPE IconDirEntry
-    bWidth      AS STRING * 1
-    bHeight     AS STRING * 1
-    bColorCount AS STRING * 1
-    bReserved   AS STRING * 1
+    bWidth      AS BYTE
+    bHeight     AS BYTE
+    bColorCount AS BYTE
+    bReserved   AS BYTE
     wPlanes     AS INTEGER
     wBitCount   AS INTEGER
     dwBytesInRes AS LONG
@@ -62,7 +64,7 @@ TYPE IconBitmapInfoHeader
 END TYPE
 
 '******************************************************************************
-'* SUB: WriteICOFile
+'* SUB: FileIco_Write
 '* Purpose: Writes the canvas to a 16-color .ICO file.
 '*          Trims transparent pixels from the edges and creates proper mask.
 '* Parameters:
@@ -70,7 +72,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileIco_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM iconDir AS IconDir
     DIM iconEntry AS IconDirEntry
     DIM bmpInfo AS IconBitmapInfoHeader
@@ -115,10 +117,10 @@ SUB WriteICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
     ' --- Fill Icon Directory Entry ---
     IF spriteWidth > 255 THEN spriteWidth = 255
     IF spriteHeight > 255 THEN spriteHeight = 255
-    iconEntry.bWidth = CHR$(spriteWidth AND &HFF)
-    iconEntry.bHeight = CHR$(spriteHeight AND &HFF)
-    iconEntry.bColorCount = CHR$(16)
-    iconEntry.bReserved = CHR$(0)
+    iconEntry.bWidth = spriteWidth AND &HFF
+    iconEntry.bHeight = spriteHeight AND &HFF
+    iconEntry.bColorCount = 16
+    iconEntry.bReserved = 0
     iconEntry.wPlanes = 1
     iconEntry.wBitCount = 4
     iconEntry.dwBytesInRes = totalImageSize
@@ -293,14 +295,14 @@ SUB WriteICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
 END SUB
 
 '******************************************************************************
-'* SUB: ReadICOFile
+'* SUB: FileIco_Read
 '* Purpose: Reads a 16-color .ICO file into the canvas.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path to the .ICO file.
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadICOFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileIco_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM iconDir AS IconDir
     DIM iconEntry AS IconDirEntry
     DIM bmpInfo AS IconBitmapInfoHeader

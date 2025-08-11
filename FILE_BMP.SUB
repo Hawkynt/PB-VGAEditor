@@ -1,4 +1,6 @@
-' .BMP File Format Module
+' BMP File Format Module
+' Common Interface: FileBmp_Read, FileBmp_Write
+' Namespace: FileBmp (pseudo-namespace via function prefixes)
 
 
 TYPE BMPHeader
@@ -24,7 +26,7 @@ TYPE BMPInfoHeader
 END TYPE
 
 '******************************************************************************
-'* SUB: WriteBMPFile
+'* SUB: FileBmp_Write
 '* Purpose: Writes the canvas to a 16-color .BMP file.
 '*          Trims transparent pixels from the edges.
 '* Parameters:
@@ -32,7 +34,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileBmp_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
@@ -119,14 +121,14 @@ SUB WriteBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
 END SUB
 
 '******************************************************************************
-'* SUB: ReadBMPFile
+'* SUB: FileBmp_Read
 '* Purpose: Reads a 16-color .BMP file into the canvas.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path to the .BMP file.
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadBMPFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileBmp_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER

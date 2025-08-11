@@ -70,6 +70,10 @@ $INCLUDE "FILE_BMP.SUB"
 $INCLUDE "FILE_PCX.SUB"
 $INCLUDE "FILE_ICO.SUB"
 $INCLUDE "FILE_XPM.SUB"
+' Experimental formats - commented out for now
+' $INCLUDE "FILE_GIF.SUB" 
+' $INCLUDE "FILE_TIF.SUB"
+$INCLUDE "FILE_TGA.SUB"
 $INCLUDE "ICONS.SUB"
 
 
@@ -413,7 +417,7 @@ SUB HandleLoadFile (isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite
     IF path <> "" THEN path = path + "\"
     LOCATE 1, 1: INPUT "File-Name: ", fileName
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM: ", fileType
+    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM, TG[A]: ", fileType
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName
@@ -421,12 +425,15 @@ SUB HandleLoadFile (isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite
     ClearCanvas spr, canvas()
 
     SELECT CASE UCASE$(fileType)
-        CASE "V": ReadVGAFile fullPath + ".VGA", spr, canvas(), errorMessage
-        CASE "B": ReadBASFile fullPath + ".BAS", spr, canvas(), errorMessage
-        CASE "P": ReadPCXFile fullPath + ".PCX", spr, canvas(), errorMessage
-        CASE "M": ReadBMPFile fullPath + ".BMP", spr, canvas(), errorMessage
-        CASE "I": ReadICOFile fullPath + ".ICO", spr, canvas(), errorMessage
-        CASE "X": ReadXPMFile fullPath + ".XPM", spr, canvas(), errorMessage
+        CASE "V": FileVga_Read fullPath + ".VGA", spr, canvas(), errorMessage
+        CASE "B": FileBas_Read fullPath + ".BAS", spr, canvas(), errorMessage
+        CASE "P": FilePcx_Read fullPath + ".PCX", spr, canvas(), errorMessage
+        CASE "M": FileBmp_Read fullPath + ".BMP", spr, canvas(), errorMessage
+        CASE "I": FileIco_Read fullPath + ".ICO", spr, canvas(), errorMessage
+        CASE "X": FileXpm_Read fullPath + ".XPM", spr, canvas(), errorMessage
+        ' CASE "G": FileGIF_Read fullPath + ".GIF", spr, canvas(), errorMessage
+        ' CASE "T": FileTIF_Read fullPath + ".TIF", spr, canvas(), errorMessage
+        CASE "A": FileTga_Read fullPath + ".TGA", spr, canvas(), errorMessage
     END SELECT
 
     IF errorMessage <> "" THEN
@@ -461,19 +468,22 @@ SUB HandleSaveFile (currentFileName AS STRING, isSaved AS INTEGER, spr AS Sprite
     IF path <> "" THEN path = path + "\"
     LOCATE 1, 1: INPUT "File-Name: ", fileName
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM: ", fileType
+    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM, TG[A]: ", fileType
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName
     fullPath = path + LEFT$(fileName, 8)
     
     SELECT CASE LCASE$(fileType)
-        CASE "v": WriteVGAFile fullPath + ".VGA", spr, canvas(), errorMessage
-        CASE "b": WriteBASFile fullPath + ".BAS", spr, canvas(), errorMessage
-        CASE "p": WritePCXFile fullPath + ".PCX", spr, canvas(), errorMessage
-        CASE "m": WriteBMPFile fullPath + ".BMP", spr, canvas(), errorMessage
-        CASE "i": WriteICOFile fullPath + ".ICO", spr, canvas(), errorMessage
-        CASE "x": WriteXPMFile fullPath + ".XPM", spr, canvas(), errorMessage
+        CASE "v": FileVga_Write fullPath + ".VGA", spr, canvas(), errorMessage
+        CASE "b": FileBas_Write fullPath + ".BAS", spr, canvas(), errorMessage
+        CASE "p": FilePcx_Write fullPath + ".PCX", spr, canvas(), errorMessage
+        CASE "m": FileBmp_Write fullPath + ".BMP", spr, canvas(), errorMessage
+        CASE "i": FileIco_Write fullPath + ".ICO", spr, canvas(), errorMessage
+        CASE "x": FileXpm_Write fullPath + ".XPM", spr, canvas(), errorMessage
+        ' CASE "g": FileGIF_Write fullPath + ".GIF", spr, canvas(), errorMessage
+        ' CASE "t": FileTIF_Write fullPath + ".TIF", spr, canvas(), errorMessage
+        CASE "a": FileTga_Write fullPath + ".TGA", spr, canvas(), errorMessage
     END SELECT
 
     IF errorMessage <> "" THEN

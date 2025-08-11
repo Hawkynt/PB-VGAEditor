@@ -1,16 +1,18 @@
-' .VGA File Format Module
+' VGA File Format Module
+' Common Interface: FileVga_Read, FileVga_Write
+' Namespace: FileVga (pseudo-namespace via function prefixes)
 
 
 
 '******************************************************************************
-'* SUB: ReadVGAFile
+'* SUB: FileVga_Read
 '* Purpose: Reads a raw .VGA file into the canvas.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path to the .VGA file.
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadVGAFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileVga_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER
@@ -31,15 +33,16 @@ SUB ReadVGAFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
     UpdateSpriteBoundingBox spr, canvas()
 END SUB
 
+
 '******************************************************************************
-'* SUB: WriteVGAFile
+'* SUB: FileVga_Write
 '* Purpose: Writes the canvas to a raw .VGA file.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path for the new file.
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteVGAFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileVga_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER

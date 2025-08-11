@@ -1,11 +1,13 @@
-' .PCX File Format Module
+' PCX File Format Module
+' Common Interface: FilePcx_Read, FilePcx_Write
+' Namespace: FilePcx (pseudo-namespace via function prefixes)
 
 
 TYPE PCXHeader
-    Manufacturer AS STRING * 1
-    Version      AS STRING * 1
-    Encoding     AS STRING * 1
-    BitsPerPixel AS STRING * 1
+    Manufacturer AS BYTE
+    Version      AS BYTE
+    Encoding     AS BYTE
+    BitsPerPixel AS BYTE
     Xmin         AS INTEGER
     Ymin         AS INTEGER
     Xmax         AS INTEGER
@@ -13,8 +15,8 @@ TYPE PCXHeader
     HDpi         AS INTEGER
     VDpi         AS INTEGER
     Colormap     AS STRING * 48
-    Reserved     AS STRING * 1
-    NPlanes      AS STRING * 1
+    Reserved     AS BYTE
+    NPlanes      AS BYTE
     BytesPerLine AS INTEGER
     PaletteInfo  AS INTEGER
     HScrSize     AS INTEGER
@@ -23,7 +25,7 @@ TYPE PCXHeader
 END TYPE
 
 '******************************************************************************
-'* SUB: WritePCXFile
+'* SUB: FilePcx_Write
 '* Purpose: Writes the canvas to a .PCX file using RLE compression.
 '*          Trims transparent pixels from the edges.
 '* Parameters:
@@ -31,7 +33,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WritePCXFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FilePcx_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
@@ -52,10 +54,10 @@ SUB WritePCXFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
     spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
 
     ' --- Fill PCX Header ---
-    header.Manufacturer = CHR$(10) ' ZSoft
-    header.Version = CHR$(5)      ' Version 3.0 with palette
-    header.Encoding = CHR$(1)      ' RLE encoding
-    header.BitsPerPixel = CHR$(8)  ' 8 bits per pixel
+    header.Manufacturer = 10 ' ZSoft
+    header.Version = 5      ' Version 3.0 with palette
+    header.Encoding = 1      ' RLE encoding
+    header.BitsPerPixel = 8  ' 8 bits per pixel
     header.Xmin = 0
     header.Ymin = 0
     header.Xmax = spriteWidth - 1
@@ -63,8 +65,8 @@ SUB WritePCXFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
     header.HDpi = spriteWidth
     header.VDpi = spriteHeight
     header.Colormap = STRING$(48, 0) ' Not used for VGA
-    header.Reserved = CHR$(0)
-    header.NPlanes = CHR$(1) ' 1 plane for 256-color mode
+    header.Reserved = 0
+    header.NPlanes = 1 ' 1 plane for 256-color mode
     header.BytesPerLine = spriteWidth
     header.PaletteInfo = 1 ' Color
     header.HScrSize = 0
@@ -119,14 +121,14 @@ SUB WritePCXFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, 
 END SUB
 
 '******************************************************************************
-'* SUB: ReadPCXFile
+'* SUB: FilePcx_Read
 '* Purpose: Reads a .PCX file into the canvas.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path to the .PCX file.
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadPCXFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FilePcx_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
@@ -147,7 +149,7 @@ SUB ReadPCXFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
     GET #fileNum, , header
 
     ' --- Validate Header ---
-    IF ASC(header.Manufacturer) <> 10 OR ASC(header.Encoding) <> 1 OR ASC(header.BitsPerPixel) <> 8 THEN
+    IF header.Manufacturer <> 10 OR header.Encoding <> 1 OR header.BitsPerPixel <> 8 THEN
         errorMessage = "Not a valid 256-color PCX file."
         CLOSE #fileNum
         EXIT SUB

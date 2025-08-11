@@ -1,14 +1,16 @@
-' .BAS File Format Module
+' BAS File Format Module
+' Common Interface: FileBas_Read, FileBas_Write
+' Namespace: FileBas (pseudo-namespace via function prefixes)
 
 '******************************************************************************
-'* SUB: ReadBASFile
+'* SUB: FileBas_Read
 '* Purpose: Reads a .BAS sprite file into the canvas.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path to the .BAS file.
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB ReadBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileBas_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM lineData AS STRING
     DIM y AS INTEGER
@@ -43,14 +45,14 @@ SUB ReadBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, e
 END SUB
 
 '******************************************************************************
-'* SUB: WriteBASFile
+'* SUB: FileBas_Write
 '* Purpose: Writes the canvas to a compressed .BAS file.
 '* Parameters:
 '*   fullPath (BYVAL STRING): The full path for the new file.
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteBASFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileBas_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER

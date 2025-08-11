@@ -1,8 +1,10 @@
-' .XPM File Format Module
+' XPM File Format Module
+' Common Interface: FileXpm_Read, FileXpm_Write
+' Namespace: FileXpm (pseudo-namespace via function prefixes)
 
 
 '******************************************************************************
-'* SUB: WriteXPMFile
+'* SUB: FileXpm_Write
 '* Purpose: Writes the canvas to a .XPM file.
 '*          Trims transparent pixels from the edges.
 '* Parameters:
@@ -10,7 +12,7 @@
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB WriteXPMFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileXpm_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER
@@ -156,7 +158,7 @@ END FUNCTION
 
 ' ========= Main loader (never STOP/END) =========
 
-SUB ReadXPMFile (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileXpm_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM fileNum AS LONG
     DIM lineData AS STRING
     DIM dims AS STRING
