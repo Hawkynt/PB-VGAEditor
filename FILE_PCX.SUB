@@ -33,7 +33,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FilePcx_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FilePcx_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
@@ -128,7 +128,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FilePcx_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FilePcx_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER

@@ -26,7 +26,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FileTga_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileTga_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM tgaHeader AS TGAHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
@@ -102,7 +102,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FileTga_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileTga_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM tgaHeader AS TGAHeader
     DIM fileNum AS INTEGER
     DIM imageWidth AS INTEGER, imageHeight AS INTEGER

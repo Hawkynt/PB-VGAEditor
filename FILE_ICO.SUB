@@ -72,7 +72,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FileIco_Write (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileIco_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM iconDir AS IconDir
     DIM iconEntry AS IconDirEntry
     DIM bmpInfo AS IconBitmapInfoHeader
@@ -302,7 +302,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FileIco_Read (BYVAL fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileIco_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
     DIM iconDir AS IconDir
     DIM iconEntry AS IconDirEntry
     DIM bmpInfo AS IconBitmapInfoHeader
