@@ -2,6 +2,8 @@
 ' Common Interface: FileVga_Read, FileVga_Write
 ' Namespace: FileVga (pseudo-namespace via function prefixes)
 
+' External references to shared variables from main file
+' (These variables are declared in VGAMAUS.BAS)
 
 
 '******************************************************************************
@@ -12,25 +14,27 @@
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FileVga_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileVga_Read (BYVAL fullPath AS STRING, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER
     errorMessage = ""
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
-    IF LOF(fileNum) < (spr.spriteWidth + 1) * (spr.spriteHeight + 1) THEN
+    IF LOF(fileNum) < (currentSprite.spriteWidth + 1) * (currentSprite.spriteHeight + 1) THEN
         errorMessage = "VGA file is too small or corrupted."
         CLOSE #fileNum
         EXIT SUB
     END IF
-    FOR y = 0 TO spr.spriteHeight
-        FOR x = 0 TO spr.spriteWidth
-            canvas(x, y) = ASC(INPUT$(1, #fileNum))
+    DIM byteVal AS STRING * 1
+    FOR y = 0 TO currentSprite.spriteHeight
+        FOR x = 0 TO currentSprite.spriteWidth
+            GET #fileNum, , byteVal
+            currentCanvas(x, y) = ASC(byteVal)
         NEXT x
     NEXT y
     CLOSE #fileNum
-    UpdateSpriteBoundingBox spr, canvas()
+    UpdateSpriteBoundingBoxShared
 END SUB
 
 
@@ -42,7 +46,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FileVga_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileVga_Write (BYVAL fullPath AS STRING, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER
@@ -50,9 +54,9 @@ SUB FileVga_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     errorMessage = ""
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
-    FOR y = 0 TO spr.spriteHeight
-        FOR x = 0 TO spr.spriteWidth
-            byteVal = CHR$(canvas(x, y))
+    FOR y = 0 TO currentSprite.spriteHeight
+        FOR x = 0 TO currentSprite.spriteWidth
+            byteVal = CHR$(currentCanvas(x, y))
             PUT #fileNum, , byteVal
         NEXT x
     NEXT y

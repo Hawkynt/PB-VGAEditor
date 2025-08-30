@@ -33,7 +33,7 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FilePcx_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FilePcx_Write (fullPath AS STRING, errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
@@ -48,10 +48,10 @@ SUB FilePcx_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     errorMessage = ""
 
     ' Check if there is anything to save
-    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+    IF currentSprite.boundingBoxX2 = -1 THEN EXIT SUB
 
-    spriteWidth = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
-    spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+    spriteWidth = currentSprite.boundingBoxX2 - currentSprite.boundingBoxX1 + 1
+    spriteHeight = currentSprite.boundingBoxY2 - currentSprite.boundingBoxY1 + 1
 
     ' --- Fill PCX Header ---
     header.Manufacturer = 10 ' ZSoft
@@ -69,8 +69,8 @@ SUB FilePcx_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     header.NPlanes = 1 ' 1 plane for 256-color mode
     header.BytesPerLine = spriteWidth
     header.PaletteInfo = 1 ' Color
-    header.HScrSize = 0
-    header.VScrSize = 0
+    header.HScrSize = currentSprite.boundingBoxX1  ' Store original X offset
+    header.VScrSize = currentSprite.boundingBoxY1  ' Store original Y offset
     header.Filler = STRING$(54, 0)
 
     fileNum = FREEFILE
@@ -80,13 +80,13 @@ SUB FilePcx_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     PUT #fileNum, , header
 
     ' --- Write Image Data with RLE ---
-    FOR y = spr.boundingBoxY1 TO spr.boundingBoxY2
-        x = spr.boundingBoxX1
-        DO WHILE x <= spr.boundingBoxX2
-            runValue = canvas(x, y)
+    FOR y = currentSprite.boundingBoxY1 TO currentSprite.boundingBoxY2
+        x = currentSprite.boundingBoxX1
+        DO WHILE x <= currentSprite.boundingBoxX2
+            runValue = currentCanvas(x, y)
             runCount = 1
             x = x + 1
-            DO WHILE x <= spr.boundingBoxX2 AND canvas(x, y) = runValue AND runCount < 63
+            DO WHILE x <= currentSprite.boundingBoxX2 AND currentCanvas(x, y) = runValue AND runCount < 63
                 runCount = runCount + 1
                 x = x + 1
             LOOP
@@ -128,7 +128,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FilePcx_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FilePcx_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM header AS PCXHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
@@ -140,6 +140,7 @@ SUB FilePcx_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
     DIM runCount AS INTEGER
     DIM runValue AS INTEGER
     DIM dataByte AS STRING * 1
+    DIM i AS INTEGER
     errorMessage = ""
 
     fileNum = FREEFILE
@@ -158,9 +159,9 @@ SUB FilePcx_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
     spriteWidth = header.Xmax - header.Xmin + 1
     spriteHeight = header.Ymax - header.Ymin + 1
 
-    ' Load at origin like other formats
-    startX = 0
-    startY = 0
+    ' Restore to original bounding box position
+    startX = header.HScrSize  ' Original X offset
+    startY = header.VScrSize  ' Original Y offset
 
     ' --- Read Image Data with RLE Decompression ---
     FOR y = 0 TO spriteHeight - 1
@@ -177,8 +178,8 @@ SUB FilePcx_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
             END IF
 
             FOR i = 1 TO runCount
-                IF (startX + x + i - 1) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN
-                    canvas(startX + x + i - 1, startY + y) = runValue
+                IF (startX + x + i - 1) <= currentSprite.spriteWidth AND (startY + y) <= currentSprite.spriteHeight THEN
+                    currentCanvas(startX + x + i - 1, startY + y) = runValue
                 END IF
             NEXT i
             x = x + runCount
@@ -186,4 +187,5 @@ SUB FilePcx_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
     NEXT y
 
     CLOSE #fileNum
+    UpdateSpriteBoundingBoxShared
 END SUB
