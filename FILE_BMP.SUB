@@ -71,8 +71,8 @@ SUB FileBmp_Write (fullPath AS STRING, errorMessage AS STRING)
       DIM bmpH AS BMPHeader
       bmpH.bfType = "BM"
       bmpH.bfSize = fileSize
-      bmpH.bfReserved1 = 0  ' Store original X offset
-      bmpH.bfReserved2 = 0  ' Store original Y offset
+      bmpH.bfReserved1 = currentSprite.boundingBoxX1  ' Store original X offset
+      bmpH.bfReserved2 = currentSprite.boundingBoxY1  ' Store original Y offset
       bmpH.bfOffBits = pixelDataOffset
       PUT #fileNum, , bmpH
     
@@ -116,9 +116,7 @@ SUB FileBmp_Write (fullPath AS STRING, errorMessage AS STRING)
       DIM y AS INTEGER
       
       FOR y = currentSprite.boundingBoxY2 TO currentSprite.boundingBoxY1 STEP -1
-        PRINT y
         FOR x = 0 TO spriteWidth - 1 STEP 2
-          PRINT x
           byteVal = currentCanvas(currentSprite.boundingBoxX1 + x, y)
           SHIFT LEFT byteVal, 4
           byteVal = byteVal OR currentCanvas(currentSprite.boundingBoxX1 + x + 1, y)
@@ -154,19 +152,8 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
-    DIM x AS LONG, y AS LONG
-    DIM spriteWidth AS LONG, spriteHeight AS LONG
-    DIM topDown AS LONG
-    DIM startX AS LONG, startY AS LONG
-    DIM rowBytes AS LONG, rowSize AS LONG, rowPadding AS LONG
-    DIM b AS LONG
-    DIM byteVal AS STRING * 1
-    DIM p1 AS INTEGER, p2 AS INTEGER
-    DIM dx AS LONG, dy AS LONG
-    DIM srcX AS LONG, srcY AS LONG
-    DIM y0 AS LONG, yStep AS LONG
-    DIM curPos AS LONG
-
+    DIM spriteWidth AS DWORD
+    DIM spriteHeight AS DWORD
     errorMessage = ""
 
     fileNum = FREEFILE
@@ -197,103 +184,62 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
         CLOSE #fileNum : EXIT SUB
     END IF
 
-    spriteWidth  = bmpIH.biWidth
+    spriteWidth = bmpIH.biWidth
     spriteHeight = bmpIH.biHeight
-    topDown = 0
-    IF spriteHeight < 0 THEN
-        topDown = 1
-        spriteHeight = -spriteHeight
-    END IF
+    
     IF spriteWidth <= 0 OR spriteHeight <= 0 THEN
         errorMessage = "Invalid BMP dimensions."
         CLOSE #fileNum : EXIT SUB
     END IF
 
-    ' 4bpp -> 2 pixels/byte
-    rowBytes   = (spriteWidth + 1) \ 2
-    rowSize    = ((rowBytes + 3) \ 4) * 4
-    rowPadding = rowSize - rowBytes
-
-    ' Restore to original bounding box position
-    startX = bmpH.bfReserved1  ' Original X offset
-    startY = bmpH.bfReserved2  ' Original Y offset
-
-    ' Seek to pixel data (PB SEEK setter has no '#'; offset is 1-based position)
-    SEEK fileNum, bmpH.bfOffBits + 1
-
-    ' Row order
-    IF topDown THEN
-        y0 = 0 : yStep = 1
-    ELSE
-        y0 = spriteHeight - 1 : yStep = -1
-    END IF
-
-    ' --- Read Pixel Data (bottom-up rows, left-to-right pixels) ---
-    DIM relY AS INTEGER, relX AS INTEGER
-    DIM hi AS INTEGER, lo AS INTEGER
-    DIM actualX AS INTEGER, actualY AS INTEGER
-    DIM bytesInRow AS INTEGER
+    ' Calculate row padding (same as write function)
+    DIM rowBytes AS DWORD
+    rowBytes = spriteWidth + 1
+    SHIFT RIGHT rowBytes, 1
     
-    bytesInRow = (spriteWidth + 1) \ 2
+    DIM rowPadding AS DWORD  
+    rowPadding = (4 - (rowBytes AND 3)) AND 3
+
+    ' Restore original bounding box position (stored in reserved fields)
+    DIM originalX AS WORD
+    DIM originalY AS WORD  
+    originalX = bmpH.bfReserved1
+    originalY = bmpH.bfReserved2
     
-    ' Process rows from bottom to top (matching write order)  
-    FOR relY = spriteHeight - 1 TO 0 STEP -1
-        actualY = startY + relY
-        
-        ' Read pixel bytes for this row
-        relX = 0
-        DO WHILE relX + 1 < spriteWidth
-            ON ERROR RESUME NEXT
+    ' Update sprite bounding box to match BMP dimensions at original position
+    currentSprite.boundingBoxX1 = originalX
+    currentSprite.boundingBoxY1 = originalY  
+    currentSprite.boundingBoxX2 = originalX + spriteWidth - 1
+    currentSprite.boundingBoxY2 = originalY + spriteHeight - 1
+
+    ' Seek to pixel data
+    SEEK fileNum, bmpH.bfOffBits
+
+    ' Read pixel data (bottom-up, matching write order)
+    DIM x AS INTEGER
+    DIM y AS INTEGER
+    DIM byteVal AS BYTE
+    
+    FOR y = currentSprite.boundingBoxY2 TO currentSprite.boundingBoxY1 STEP -1
+        FOR x = 0 TO spriteWidth - 1 STEP 2
             GET #fileNum, , byteVal
-            IF ERR <> 0 OR LEN(byteVal) <> 1 THEN
-                errorMessage = "Unexpected EOF in BMP pixel data."
-                ERRCLEAR : ON ERROR GOTO 0
-                CLOSE #fileNum : EXIT SUB
-            END IF
-            ON ERROR GOTO 0
-            
-            hi = ASC(byteVal) \ 16     ' High nibble -> first pixel
-            lo = ASC(byteVal) AND 15   ' Low nibble -> second pixel
-            
-            ' Store pixels if within canvas bounds
-            actualX = startX + relX
-            IF actualX >= 0 AND actualX < currentSprite.spriteWidth AND actualY >= 0 AND actualY < currentSprite.spriteHeight THEN
-                currentCanvas(actualX, actualY) = hi
-            END IF
-            
-            actualX = startX + relX + 1
-            IF actualX >= 0 AND actualX < currentSprite.spriteWidth AND actualY >= 0 AND actualY < currentSprite.spriteHeight THEN
-                currentCanvas(actualX, actualY) = lo
-            END IF
-            
-            relX = relX + 2
-        LOOP
+            currentCanvas(currentSprite.boundingBoxX1 + x + 1, y) = byteVal AND &H0F
+            SHIFT RIGHT byteVal, 4
+            currentCanvas(currentSprite.boundingBoxX1 + x, y) = byteVal
+        NEXT
         
-        ' Handle odd width: read last byte if needed
-        IF relX < spriteWidth THEN
-            ON ERROR RESUME NEXT
+        ' Handle odd width
+        IF x < spriteWidth THEN
             GET #fileNum, , byteVal
-            IF ERR <> 0 OR LEN(byteVal) <> 1 THEN
-                errorMessage = "Unexpected EOF in BMP pixel data."
-                ERRCLEAR : ON ERROR GOTO 0
-                CLOSE #fileNum : EXIT SUB
-            END IF
-            ON ERROR GOTO 0
-            
-            hi = ASC(byteVal) \ 16     ' High nibble -> last pixel
-            
-            actualX = startX + relX
-            IF actualX >= 0 AND actualX < currentSprite.spriteWidth AND actualY >= 0 AND actualY < currentSprite.spriteHeight THEN
-                currentCanvas(actualX, actualY) = hi
-            END IF
+            SHIFT RIGHT byteVal, 4
+            currentCanvas(currentSprite.boundingBoxX1 + spriteWidth, y) = byteVal
         END IF
         
         ' Skip row padding
-        IF rowPadding > 0 THEN
-            curPos = SEEK(fileNum) + rowPadding
-            SEEK fileNum, curPos
-        END IF
-    NEXT relY
+        FOR x = 0 TO rowPadding - 1
+            GET #fileNum, , byteVal
+        NEXT
+    NEXT
 
     CLOSE #fileNum
     UpdateSpriteBoundingBoxShared
