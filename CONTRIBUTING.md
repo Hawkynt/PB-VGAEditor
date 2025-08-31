@@ -79,6 +79,7 @@ IF chunkType = &H49484452 THEN ' What does this mean?
 ## Writing Functions
 
 ### Template Structure
+
 ```basic
 SUB File<Format>_Write (fullPath AS STRING, errorMessage AS STRING)
     errorMessage = ""
@@ -165,12 +166,24 @@ END SUB
 
 The editor uses a standard 16-color VGA palette:
 
-```basic
-' Standard VGA 16-color palette (0-15):
-' 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown, 7=LightGray
-' 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan, 
-' 12=LightRed, 13=LightMagenta, 14=Yellow, 15=White
-```
+|ID|Name|Code|
+|--|----|----|
+|0|Black|#000000|
+|1|Blue|#0000AA|
+|2|Green|#00AA00|
+|3|Cyan|#00AAAA|
+|4|Red|#AA0000|
+|5|Magenta|#AA00AA|
+|6|Brown|#AA5500|
+|7|LightGray|#AAAAAA|
+|8|DarkGray|#555555|
+|9|LightBlue|#5555FF|
+|10|LightGreen|#55FF55|
+|11|LightCyan|#55FFFF|
+|12|LightRed|#FF5555|
+|13|LightMagenta|#FF55FF|
+|14|Yellow|#FFFF00|
+|15|White|#FFFFFF|
 
 Map external color formats to this palette as appropriate for your format.
 
