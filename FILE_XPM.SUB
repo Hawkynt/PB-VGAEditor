@@ -12,7 +12,7 @@
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FileXpm_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileXpm_Write (fullPath AS STRING, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER
@@ -24,10 +24,10 @@ SUB FileXpm_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     errorMessage = ""
 
     ' Check if there is anything to save
-    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+    IF currentSprite.boundingBoxX2 = -1 THEN EXIT SUB
 
-    spriteWidth = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
-    spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+    spriteWidth = currentSprite.boundingBoxX2 - currentSprite.boundingBoxX1 + 1
+    spriteHeight = currentSprite.boundingBoxY2 - currentSprite.boundingBoxY1 + 1
 
     ' --- Define XPM Characters and Colors ---
     colorChars(0) = " ": colorMap(0) = "c #000000"
@@ -56,17 +56,18 @@ SUB FileXpm_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     PRINT #fileNum, CHR$(34) + STR$(spriteWidth) + " " + STR$(spriteHeight) + " 16 1" + CHR$(34) + ","
 
     ' --- Write Color Map ---
+    DIM i AS INTEGER
     FOR i = 0 TO 15
         PRINT #fileNum, CHR$(34) + colorChars(i) + " " + colorMap(i) + CHR$(34) + ","
     NEXT i
 
     ' --- Write Pixel Data ---
-    FOR y = spr.boundingBoxY1 TO spr.boundingBoxY2
+    FOR y = currentSprite.boundingBoxY1 TO currentSprite.boundingBoxY2
         rowData = ""
-        FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2
-            rowData = rowData + colorChars(canvas(x, y))
+        FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2
+            rowData = rowData + colorChars(currentCanvas(x, y))
         NEXT x
-        IF y = spr.boundingBoxY2 THEN
+        IF y = currentSprite.boundingBoxY2 THEN
             PRINT #fileNum, CHR$(34) + rowData + CHR$(34)
         ELSE
             PRINT #fileNum, CHR$(34) + rowData + CHR$(34) + ","
@@ -158,7 +159,7 @@ END FUNCTION
 
 ' ========= Main loader (never STOP/END) =========
 
-SUB FileXpm_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileXpm_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM fileNum AS LONG
     DIM lineData AS STRING
     DIM dims AS STRING
@@ -213,17 +214,17 @@ SUB FileXpm_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
     ok = TryParseNumber(5, dims, charsPerPixel) : IF ok = 0 THEN GOTO Fail_ParseDims
 
     IF charsPerPixel <> 1 THEN
-        errorMessage = "Unsupported XPM format: charsPerPixel=" + FORMAT$(charsPerPixel)
+        errorMessage = "Unsupported XPM format: charsPerPixel=" + STR$(charsPerPixel)
         CLOSE #fileNum
         EXIT SUB
     END IF
     IF numColors < 1 OR numColors > 256 THEN
-        errorMessage = "Unsupported color count: " + FORMAT$(numColors)
+        errorMessage = "Unsupported color count: " + STR$(numColors)
         CLOSE #fileNum
         EXIT SUB
     END IF
     IF spriteWidth < 1 OR spriteHeight < 1 THEN
-        errorMessage = "Invalid dimensions: " + FORMAT$(spriteWidth) + "x" + FORMAT$(spriteHeight)
+        errorMessage = "Invalid dimensions: " + STR$(spriteWidth) + "x" + STR$(spriteHeight)
         CLOSE #fileNum
         EXIT SUB
     END IF
@@ -239,20 +240,44 @@ SUB FileXpm_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
         IF LEN(colorLine) >= 1 THEN
             charCode = ASC(MID$(colorLine, 1, 1))
             IF charCode >= LBOUND(colorMap) AND charCode <= UBOUND(colorMap) THEN
-                colorMap(charCode) = CINT(i AND &HFFFF&)
+                ' Map character to actual VGA color index based on color chars in writer
+                DIM vgaColorIndex AS INTEGER
+                SELECT CASE charCode
+                    CASE 32: vgaColorIndex = 0   ' space → black
+                    CASE 46: vgaColorIndex = 1   ' . → blue  
+                    CASE 88: vgaColorIndex = 2   ' X → green
+                    CASE 111: vgaColorIndex = 3  ' o → cyan
+                    CASE 79: vgaColorIndex = 4   ' O → red
+                    CASE 43: vgaColorIndex = 5   ' + → magenta
+                    CASE 64: vgaColorIndex = 6   ' @ → brown
+                    CASE 35: vgaColorIndex = 7   ' # → light gray
+                    CASE 36: vgaColorIndex = 8   ' $ → dark gray
+                    CASE 37: vgaColorIndex = 9   ' % → light blue
+                    CASE 38: vgaColorIndex = 10  ' & → light green
+                    CASE 42: vgaColorIndex = 11  ' * → light cyan
+                    CASE 61: vgaColorIndex = 12  ' = → light red
+                    CASE 45: vgaColorIndex = 13  ' - → light magenta
+                    CASE 59: vgaColorIndex = 14  ' ; → yellow
+                    CASE 58: vgaColorIndex = 15  ' : → white
+                    CASE ELSE: vgaColorIndex = 0
+                END SELECT
+                colorMap(charCode) = vgaColorIndex
             END IF
         END IF
-        ' If malformed, leave default 0 mapping.
     NEXT i
 
     startX = 0
     startY = 0
 
+    ' Ensure sprite dimensions are adequate for the image size
+    IF spriteWidth > currentSprite.spriteWidth THEN currentSprite.spriteWidth = spriteWidth
+    IF spriteHeight > currentSprite.spriteHeight THEN currentSprite.spriteHeight = spriteHeight
+
     DIM dstMinX AS LONG, dstMinY AS LONG, dstMaxX AS LONG, dstMaxY AS LONG
-    dstMinX = ClampLong(startX, 0, spr.spriteWidth - 1)
-    dstMinY = ClampLong(startY, 0, spr.spriteHeight - 1)
-    dstMaxX = ClampLong(startX + spriteWidth - 1, 0, spr.spriteWidth - 1)
-    dstMaxY = ClampLong(startY + spriteHeight - 1, 0, spr.spriteHeight - 1)
+    dstMinX = ClampLong(startX, 0, currentSprite.spriteWidth - 1)
+    dstMinY = ClampLong(startY, 0, currentSprite.spriteHeight - 1)
+    dstMaxX = ClampLong(startX + spriteWidth - 1, 0, currentSprite.spriteWidth - 1)
+    dstMaxY = ClampLong(startY + spriteHeight - 1, 0, currentSprite.spriteHeight - 1)
 
     DIM srcOffsetX AS LONG, srcOffsetY AS LONG
     srcOffsetX = dstMinX - startX
@@ -270,7 +295,7 @@ SUB FileXpm_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
 
         DIM dy AS LONG
         dy = y + startY
-        IF dy < 0 OR dy > spr.spriteHeight - 1 THEN ITERATE FOR
+        IF dy < 0 OR dy > currentSprite.spriteHeight - 1 THEN ITERATE FOR
 
         FOR x = 0 TO spriteWidth - 1
             DIM dx AS LONG
@@ -284,13 +309,19 @@ SUB FileXpm_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
                 glyph = MID$(row, srcPos, 1)
                 charCode = ASC(glyph)
                 IF charCode >= LBOUND(colorMap) AND charCode <= UBOUND(colorMap) THEN
-                    canvas(dx, dy) = colorMap(charCode)
+                    currentCanvas(dx, dy) = colorMap(charCode)
                 END IF
             END IF
         NEXT x
     NEXT y
 
     CLOSE #fileNum
+    
+    ' Update bounding box to match loaded data dimensions at (0,0)
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = spriteWidth - 1
+    currentSprite.boundingBoxY2 = spriteHeight - 1
     EXIT SUB
 
 Fail_EOF:
