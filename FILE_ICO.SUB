@@ -206,7 +206,6 @@ SUB FileIco_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM iconDir AS IconDir
     DIM iconEntry AS IconDirEntry
     DIM bmpInfo AS IconBitmapInfoHeader
-    DIM fileNum AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
     DIM spriteWidth AS DWORD, spriteHeight AS DWORD
     DIM imageRowSize AS DWORD, maskRowSize AS DWORD
@@ -215,7 +214,7 @@ SUB FileIco_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM p1 AS INTEGER, p2 AS INTEGER
     errorMessage = ""
 
-    fileNum = FREEFILE
+    DIM fileNum AS INTEGER : fileNum = FREEFILE
     ON ERROR RESUME NEXT
     OPEN fullPath FOR BINARY AS #fileNum
     IF ERR <> 0 THEN
@@ -264,7 +263,10 @@ SUB FileIco_Read (fullPath AS STRING, errorMessage AS STRING)
     GET #fileNum, , bmpInfo
     
     ' --- Seek to image data (skip palette) ---
-    SEEK fileNum, iconEntry.dwImageOffset + 40 + (16 * 4) + 1
+    ' dwImageOffset points to BMP header, add header(40) + palette(64) to get to image data
+    DIM imageDataPos AS LONG
+    imageDataPos = iconEntry.dwImageOffset + 40 + (16 * 4)
+    SEEK fileNum, imageDataPos
 
     DIM readBytesPerRow AS DWORD
     readBytesPerRow = (spriteWidth + 1) \ 2  ' ceiling division 
@@ -273,29 +275,23 @@ SUB FileIco_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM readMaskBytesPerRow AS DWORD  
     readMaskBytesPerRow = (spriteWidth + 7) \ 8  ' ceiling division
     maskRowSize = ((readMaskBytesPerRow + 3) \ 4) * 4  ' pad to 4-byte boundary
-
-    ' Load sprite at 0,0 position
-    currentSprite.boundingBoxX1 = 0
-    currentSprite.boundingBoxY1 = 0
-    currentSprite.boundingBoxX2 = spriteWidth - 1
-    currentSprite.boundingBoxY2 = spriteHeight - 1
-    
-
-    ' Clear entire canvas first (everything transparent)
-    FOR y = 0 TO currentSprite.spriteHeight - 1
-        FOR x = 0 TO currentSprite.spriteWidth - 1
-            currentCanvas(x, y) = 0
-        NEXT x
-    NEXT y
-
-    ' --- Read Image Data (4bpp, upside-down) ---
-    FOR readY = spriteHeight - 1 TO 0 STEP -1
-        FOR readX = 0 TO spriteWidth - 1 STEP 2
+ 
+    ' --- Read Image Data (4bpp, upside-down) - using BMP reader logic ---
+    FOR y = spriteHeight - 1 TO 0 STEP -1
+        FOR x = 0 TO spriteWidth - 1 STEP 2
             GET #fileNum, , pixelByte
-            currentCanvas(readX + 1, readY) = pixelByte AND &H0F
+            ' Use exact BMP reader bit ordering (proven to work)
+            currentCanvas(x + 1, y) = pixelByte AND &H0F      ' Low nibble to x+1
             SHIFT RIGHT pixelByte, 4
-            currentCanvas(readX, readY) = pixelByte
+            currentCanvas(x, y) = pixelByte                    ' High nibble to x
         NEXT
+        
+        ' Handle odd width (copied from BMP reader)
+        IF x < spriteWidth THEN
+            GET #fileNum, , pixelByte
+            SHIFT RIGHT pixelByte, 4
+            currentCanvas(spriteWidth, y) = pixelByte
+        END IF
         
         ' Skip row padding
         DIM skipBytes AS INTEGER
@@ -303,24 +299,24 @@ SUB FileIco_Read (fullPath AS STRING, errorMessage AS STRING)
         FOR x = 1 TO skipBytes
             GET #fileNum, , pixelByte  ' dummy read to skip padding
         NEXT x
-    NEXT readY
+    NEXT y
 
     ' --- Read and Apply Mask Data (1bpp, upside-down) ---
-    FOR readY = spriteHeight - 1 TO 0 STEP -1
+    FOR y = spriteHeight - 1 TO 0 STEP -1
         FOR x = 0 TO spriteWidth - 1 STEP 8
             GET #fileNum, , maskByte
             FOR bitPos = 0 TO 7
                 IF (x + bitPos) < spriteWidth THEN
                     ' If mask bit is 1, pixel is transparent  
                     ' Check bit using simple shift: bit 0=128, 1=64, 2=32, etc.
-                    IF bitPos = 0 AND (maskByte AND 128) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
-                    IF bitPos = 1 AND (maskByte AND 64) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
-                    IF bitPos = 2 AND (maskByte AND 32) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
-                    IF bitPos = 3 AND (maskByte AND 16) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
-                    IF bitPos = 4 AND (maskByte AND 8) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
-                    IF bitPos = 5 AND (maskByte AND 4) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
-                    IF bitPos = 6 AND (maskByte AND 2) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
-                    IF bitPos = 7 AND (maskByte AND 1) <> 0 THEN currentCanvas(x + bitPos, readY) = 0
+                    IF bitPos = 0 AND (maskByte AND 128) <> 0 THEN currentCanvas(x + bitPos, y) = 0
+                    IF bitPos = 1 AND (maskByte AND 64) <> 0 THEN currentCanvas(x + bitPos, y) = 0
+                    IF bitPos = 2 AND (maskByte AND 32) <> 0 THEN currentCanvas(x + bitPos, y) = 0
+                    IF bitPos = 3 AND (maskByte AND 16) <> 0 THEN currentCanvas(x + bitPos, y) = 0
+                    IF bitPos = 4 AND (maskByte AND 8) <> 0 THEN currentCanvas(x + bitPos, y) = 0
+                    IF bitPos = 5 AND (maskByte AND 4) <> 0 THEN currentCanvas(x + bitPos, y) = 0
+                    IF bitPos = 6 AND (maskByte AND 2) <> 0 THEN currentCanvas(x + bitPos, y) = 0
+                    IF bitPos = 7 AND (maskByte AND 1) <> 0 THEN currentCanvas(x + bitPos, y) = 0
                 END IF
             NEXT bitPos
         NEXT x
@@ -330,7 +326,14 @@ SUB FileIco_Read (fullPath AS STRING, errorMessage AS STRING)
         FOR x = 1 TO skipBytes
             GET #fileNum, , maskByte  ' dummy read to skip padding
         NEXT x
-    NEXT readY
+    NEXT y
 
     CLOSE #fileNum
+    
+    ' Load sprite at 0,0 position
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = spriteWidth - 1
+    currentSprite.boundingBoxY2 = spriteHeight - 1
+   
 END SUB
