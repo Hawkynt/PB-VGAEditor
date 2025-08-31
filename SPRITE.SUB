@@ -2,17 +2,28 @@
 
 
 '******************************************************************************
-'* SUB: InitializeSprite
-'* Purpose: Sets the initial dimensions for the sprite and allocates memory.
+'* SUB: UpdateSpriteBoundingBox
+'* Purpose: Calculates the tightest rectangle containing non-transparent pixels.
 '* Parameters:
-'*   spr (BYREF Sprite): The sprite metadata object to initialize.
-'*   canvas() (BYREF INTEGER): The integer array to be dimensioned.
+'*   spr (BYREF Sprite): The sprite metadata object to update.
+'*   canvas() (BYREF INTEGER): The sprite data array to analyze.
 '******************************************************************************
-SUB InitializeSprite (spr AS Sprite, canvas() AS INTEGER)
-    spr.spriteWidth = (%GRID_X_MAX / %GRID_X_STEP)
-    spr.spriteHeight = (%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP
-    REDIM canvas(0 TO spr.spriteWidth, 0 TO spr.spriteHeight) AS INTEGER
-    ClearCanvas spr, canvas()
+SUB UpdateSpriteBoundingBox (spr AS Sprite, canvas() AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER
+    spr.boundingBoxX1 = spr.spriteWidth + 1
+    spr.boundingBoxY1 = spr.spriteHeight + 1
+    spr.boundingBoxX2 = -1
+    spr.boundingBoxY2 = -1
+    FOR y = 0 TO spr.spriteHeight
+        FOR x = 0 TO spr.spriteWidth
+            IF canvas(x, y) <> 0 THEN
+                IF x < spr.boundingBoxX1 THEN spr.boundingBoxX1 = x
+                IF y < spr.boundingBoxY1 THEN spr.boundingBoxY1 = y
+                IF x > spr.boundingBoxX2 THEN spr.boundingBoxX2 = x
+                IF y > spr.boundingBoxY2 THEN spr.boundingBoxY2 = y
+            END IF
+        NEXT x
+    NEXT y
 END SUB
 
 '******************************************************************************
@@ -30,6 +41,49 @@ SUB ClearCanvas (spr AS Sprite, canvas() AS INTEGER)
         NEXT x
     NEXT y
     UpdateSpriteBoundingBox spr, canvas()
+END SUB
+
+'******************************************************************************
+'* SUB: InitializeSprite
+'* Purpose: Sets the initial dimensions for the sprite and allocates memory.
+'* Parameters:
+'*   spr (BYREF Sprite): The sprite metadata object to initialize.
+'*   canvas() (BYREF INTEGER): The integer array to be dimensioned.
+'******************************************************************************
+SUB InitializeSprite (spr AS Sprite, canvas() AS INTEGER)
+    spr.spriteWidth = (%GRID_X_MAX / %GRID_X_STEP)
+    spr.spriteHeight = (%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP
+    REDIM canvas(0 TO spr.spriteWidth, 0 TO spr.spriteHeight) AS INTEGER
+    ClearCanvas spr, canvas()
+END SUB
+
+'******************************************************************************
+'* SUB: DrawGrid
+'* Purpose: Draws the editor grid on the screen.
+'* Parameters: None
+'******************************************************************************
+SUB DrawGrid ()
+    DIM x AS INTEGER, y AS INTEGER
+    FOR x = 0 TO %GRID_X_MAX STEP %GRID_X_STEP
+        LINE (x, %GRID_START_Y)-(x, %GRID_Y_MAX), %GRID_COLOR
+    NEXT x
+    FOR y = %GRID_START_Y TO %GRID_Y_MAX STEP %GRID_Y_STEP
+        LINE (0, y)-(%GRID_X_MAX, y), %GRID_COLOR
+    NEXT y
+END SUB
+
+'******************************************************************************
+'* SUB: CanvasToScreen
+'* Purpose: Converts canvas array coordinates to screen pixel coordinates.
+'* Parameters:
+'*   canvasX (BYVAL INTEGER): The X index of the canvas array.
+'*   canvasY (BYVAL INTEGER): The Y index of the canvas array.
+'*   screenX (BYREF INTEGER): The resulting X pixel coordinate on screen.
+'*   screenY (BYREF INTEGER): The resulting Y pixel coordinate on screen.
+'******************************************************************************
+SUB CanvasToScreen (BYVAL canvasX AS INTEGER, BYVAL canvasY AS INTEGER, screenX AS INTEGER, screenY AS INTEGER)
+    screenX = canvasX * %GRID_X_STEP
+    screenY = (canvasY * %GRID_Y_STEP) + %GRID_START_Y
 END SUB
 
 '******************************************************************************
@@ -56,32 +110,22 @@ SUB RenderCanvas (spr AS Sprite, canvas() AS INTEGER)
 END SUB
 
 '******************************************************************************
-'* SUB: CanvasToScreen
-'* Purpose: Converts canvas array coordinates to screen pixel coordinates.
-'* Parameters:
-'*   canvasX (BYVAL INTEGER): The X index of the canvas array.
-'*   canvasY (BYVAL INTEGER): The Y index of the canvas array.
-'*   screenX (BYREF INTEGER): The resulting X pixel coordinate on screen.
-'*   screenY (BYREF INTEGER): The resulting Y pixel coordinate on screen.
+'* SUB: DrawIcon
+'* Purpose: Draws a single 8x8 icon.
 '******************************************************************************
-SUB CanvasToScreen (BYVAL canvasX AS INTEGER, BYVAL canvasY AS INTEGER, screenX AS INTEGER, screenY AS INTEGER)
-    screenX = canvasX * %GRID_X_STEP
-    screenY = (canvasY * %GRID_Y_STEP) + %GRID_START_Y
-END SUB
-
-'******************************************************************************
-'* SUB: DrawGrid
-'* Purpose: Draws the editor grid on the screen.
-'* Parameters: None
-'******************************************************************************
-SUB DrawGrid ()
-    DIM x AS INTEGER, y AS INTEGER
-    FOR x = 0 TO %GRID_X_MAX STEP %GRID_X_STEP
-        LINE (x, %GRID_START_Y)-(x, %GRID_Y_MAX), %GRID_COLOR
-    NEXT x
-    FOR y = %GRID_START_Y TO %GRID_Y_MAX STEP %GRID_Y_STEP
-        LINE (0, y)-(%GRID_X_MAX, y), %GRID_COLOR
+SUB DrawIcon (BYVAL drawX AS INTEGER, BYVAL drawY AS INTEGER, BYVAL iconData AS STRING, BYVAL isSelected AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, pixelColor AS INTEGER
+    FOR y = 0 TO 7
+        FOR x = 0 TO 7
+            pixelColor = VAL("&H" + MID$(iconData, (y * 8) + x + 1, 1))
+            PSET (drawX + x, drawY + y), pixelColor
+        NEXT x
     NEXT y
+    IF isSelected THEN
+        LINE (drawX - 1, drawY - 1)-(drawX + 8, drawY + 8), 15, B
+    ELSE
+        LINE (drawX - 1, drawY - 1)-(drawX + 8, drawY + 8), 0, B
+    END IF
 END SUB
 
 '******************************************************************************
@@ -127,31 +171,6 @@ SUB DrawUI (BYVAL drawingColor AS INTEGER, BYVAL currentFileName AS STRING, spr 
         iconY = %PREVIEW_Y + spr.spriteHeight + 20 + (i \ 2) * 20
         DrawIcon iconX, iconY, toolIcons(i), (i = selectedTool)
     NEXT i
-END SUB
-
-'******************************************************************************
-'* SUB: UpdateSpriteBoundingBox
-'* Purpose: Calculates the tightest rectangle containing non-transparent pixels.
-'* Parameters:
-'*   spr (BYREF Sprite): The sprite metadata object to update.
-'*   canvas() (BYREF INTEGER): The sprite data array to analyze.
-'******************************************************************************
-SUB UpdateSpriteBoundingBox (spr AS Sprite, canvas() AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER
-    spr.boundingBoxX1 = spr.spriteWidth + 1
-    spr.boundingBoxY1 = spr.spriteHeight + 1
-    spr.boundingBoxX2 = -1
-    spr.boundingBoxY2 = -1
-    FOR y = 0 TO spr.spriteHeight
-        FOR x = 0 TO spr.spriteWidth
-            IF canvas(x, y) <> 0 THEN
-                IF x < spr.boundingBoxX1 THEN spr.boundingBoxX1 = x
-                IF y < spr.boundingBoxY1 THEN spr.boundingBoxY1 = y
-                IF x > spr.boundingBoxX2 THEN spr.boundingBoxX2 = x
-                IF y > spr.boundingBoxY2 THEN spr.boundingBoxY2 = y
-            END IF
-        NEXT x
-    NEXT y
 END SUB
 
 '******************************************************************************
@@ -312,21 +331,25 @@ SUB DrawFilledCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEG
 END SUB
 
 '******************************************************************************
-'* SUB: DrawIcon
-'* Purpose: Draws a single 8x8 icon.
+'* SUB: UpdateSpriteBoundingBoxShared
+'* Purpose: Calculates bounding box using shared variables (method pointer workaround)
+'* Uses: currentSprite and currentCanvas shared variables
 '******************************************************************************
-SUB DrawIcon (BYVAL drawX AS INTEGER, BYVAL drawY AS INTEGER, BYVAL iconData AS STRING, BYVAL isSelected AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, pixelColor AS INTEGER
-    FOR y = 0 TO 7
-        FOR x = 0 TO 7
-            pixelColor = VAL("&H" + MID$(iconData, (y * 8) + x + 1, 1))
-            PSET (drawX + x, drawY + y), pixelColor
+SUB UpdateSpriteBoundingBoxShared
+    DIM x AS INTEGER, y AS INTEGER
+    currentSprite.boundingBoxX1 = currentSprite.spriteWidth + 1
+    currentSprite.boundingBoxY1 = currentSprite.spriteHeight + 1
+    currentSprite.boundingBoxX2 = -1
+    currentSprite.boundingBoxY2 = -1
+    FOR y = 0 TO currentSprite.spriteHeight
+        FOR x = 0 TO currentSprite.spriteWidth
+            IF currentCanvas(x, y) <> 0 THEN
+                IF x < currentSprite.boundingBoxX1 THEN currentSprite.boundingBoxX1 = x
+                IF y < currentSprite.boundingBoxY1 THEN currentSprite.boundingBoxY1 = y
+                IF x > currentSprite.boundingBoxX2 THEN currentSprite.boundingBoxX2 = x
+                IF y > currentSprite.boundingBoxY2 THEN currentSprite.boundingBoxY2 = y
+            END IF
         NEXT x
     NEXT y
-    IF isSelected THEN
-        LINE (drawX - 1, drawY - 1)-(drawX + 8, drawY + 8), 15, B
-    ELSE
-        LINE (drawX - 1, drawY - 1)-(drawX + 8, drawY + 8), 0, B
-    END IF
 END SUB
 

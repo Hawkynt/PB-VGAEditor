@@ -60,90 +60,317 @@ TYPE Sprite
     boundingBoxY2 AS INTEGER
 END TYPE
 
-$INCLUDE "INTRO.SUB"
-$INCLUDE "MOUSE.SUB"
+TYPE FileFormat
+    keyChar AS STRING * 1
+    extension AS STRING * 3
+    displayName AS STRING * 10
+    readFunction AS DWORD
+    writeFunction AS DWORD
+END TYPE
+
+$INCLUDE "ICONS.SUB"
+
+' Global format registry - shared array (will be redimensioned dynamically)
+DIM formatRegistry(0) AS SHARED FileFormat
+
+' Shared variables for method pointer workaround (arrays can't be passed to method pointers)
+DIM currentSprite AS SHARED Sprite
+DIM currentCanvas(1, 1) AS SHARED INTEGER
+
+' Initialize shared variables before use (canvas will be dimensioned in InitializeSprite)
+currentSprite.spriteWidth = (%GRID_X_MAX / %GRID_X_STEP)
+currentSprite.spriteHeight = (%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP
+currentSprite.boundingBoxX1 = -1
+currentSprite.boundingBoxY1 = -1
+currentSprite.boundingBoxX2 = -1
+currentSprite.boundingBoxY2 = -1
+
 $INCLUDE "SPRITE.SUB"
-$INCLUDE "PREVIEW.SUB"
+
 $INCLUDE "FILE_VGA.SUB"
 $INCLUDE "FILE_BAS.SUB"
 $INCLUDE "FILE_BMP.SUB"
 $INCLUDE "FILE_PCX.SUB"
 $INCLUDE "FILE_ICO.SUB"
 $INCLUDE "FILE_XPM.SUB"
-' Experimental formats - commented out for now
-' $INCLUDE "FILE_GIF.SUB" 
-' $INCLUDE "FILE_TIF.SUB"
+$INCLUDE "FILE_GIF.SUB"
+$INCLUDE "FILE_TIF.SUB"
 $INCLUDE "FILE_TGA.SUB"
-$INCLUDE "ICONS.SUB"
 
-
+$INCLUDE "MOUSE.SUB"
 DIM mouse AS MouseInfo
-InitializeSystem mouse
-ShowIntro
-WaitForInput
-MainEditorLoop
+$INCLUDE "PREVIEW.SUB"
+$INCLUDE "INTRO.SUB"
 
 '******************************************************************************
-'* SUB: MainEditorLoop
-'* Purpose: The main event loop for the sprite editor.
-'* Parameters: None
+'* FUNCTION: WaitForKey
+'* Purpose: Waits for a key press and returns the key code.
+'* Returns: (STRING) The key that was pressed.
 '******************************************************************************
-SUB MainEditorLoop
-    DIM mouse AS MouseInfo
-    DIM mainSprite AS Sprite
-    DIM DYNAMIC spriteCanvas(0 TO 1, 0 TO 1) AS INTEGER
-    DIM cursorBoxColorToggle AS INTEGER
-    DIM cursorBoxColor AS INTEGER
-    DIM drawingColor AS INTEGER
-    DIM currentX AS INTEGER
-    DIM currentY AS INTEGER
-    DIM prevX AS INTEGER
-    DIM prevY AS INTEGER
-    DIM isSaved AS INTEGER
-    DIM isLineMode AS INTEGER
-    DIM selectedTool AS INTEGER
-    DIM currentFileName AS STRING
-    DIM toolIcons(0 TO %NUM_TOOLS - 1) AS STRING
-
-    InitializeSprite mainSprite, spriteCanvas()
-    LoadToolIcons toolIcons()
-
-    isSaved = %TRUE
-    isLineMode = %FALSE
-    selectedTool = %TOOL_DRAW
-    currentFileName = "UNBENANNT"
-    drawingColor = %DEFAULT_DRAW_COLOR
-    currentX = 0
-    currentY = %GRID_START_Y
-    cursorBoxColorToggle = 1
-    
-    CLS
-    DrawGrid
-    DrawUI drawingColor, currentFileName, mainSprite, selectedTool, toolIcons()
-    
+FUNCTION WaitForKey () AS STRING
+    DIM currentKey AS STRING
     DO
-        GetMouseState mouse
-        prevX = currentX
-        prevY = currentY
-        currentX = INT(mouse.x / %GRID_X_STEP) * %GRID_X_STEP
-        currentY = INT(mouse.y / %GRID_Y_STEP) * %GRID_Y_STEP + 2
+        currentKey = INKEY$
+    LOOP WHILE currentKey = ""
+    WaitForKey = currentKey
+END FUNCTION
 
-        IF currentX > %GRID_X_MAX - %GRID_X_STEP THEN currentX = %GRID_X_MAX - %GRID_X_STEP
-        IF currentX < 0 THEN currentX = 0
-        IF currentY < %GRID_START_Y THEN currentY = %GRID_START_Y
-        IF currentY > %GRID_Y_MAX - %GRID_Y_STEP THEN currentY = %GRID_Y_MAX - %GRID_Y_STEP
-
-        ' Redraw cursor every iteration to maintain flashing effect
-        LINE (prevX, prevY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
-        IF cursorBoxColorToggle = 1 THEN cursorBoxColor = 4 ELSE cursorBoxColor = 14
-        LINE (currentX, currentY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), cursorBoxColor, B
-        IF cursorBoxColorToggle = 1 THEN cursorBoxColorToggle = 2 ELSE cursorBoxColorToggle = 1
-
-        HandleMouseInput mouse, mainSprite, spriteCanvas(), drawingColor, isLineMode, isSaved, selectedTool, currentFileName, toolIcons()
-        IF HandleKeyboardInput(drawingColor, isLineMode, isSaved, currentFileName, mainSprite, spriteCanvas(), selectedTool) = %TRUE THEN
-            DrawUI drawingColor, currentFileName, mainSprite, selectedTool, toolIcons()
+'******************************************************************************
+'* FUNCTION: GenerateKeyFromExtension
+'* Purpose: Auto-generate unique single-letter key from file extension.
+'* Parameters:
+'*   extension (BYVAL STRING): File extension without dot (e.g., "VGA", "BMP").
+'* Returns: (STRING) Single character key, trying first letter, then second, etc.
+'******************************************************************************
+FUNCTION GenerateKeyFromExtension (BYVAL extension AS STRING) AS STRING
+    DIM i AS INTEGER
+    DIM candidate AS STRING
+    DIM j AS INTEGER
+    DIM maxFormats AS INTEGER
+    DIM isUsed AS INTEGER
+    
+    ' Try each character in the extension
+    FOR i = 1 TO LEN(extension)
+        candidate = UCASE$(MID$(extension, i, 1))
+        isUsed = %FALSE
+        
+        ' Check if this character is already used
+        ON ERROR RESUME NEXT
+        maxFormats = UBOUND(formatRegistry)
+        IF ERR = 0 THEN
+            FOR j = 1 TO maxFormats
+                IF formatRegistry(j).keyChar = candidate THEN
+                    isUsed = %TRUE
+                    EXIT FOR
+                END IF
+            NEXT j
         END IF
-    LOOP
+        ERRCLEAR
+        ON ERROR GOTO 0
+        
+        ' If not used, return this character
+        IF isUsed = %FALSE THEN
+            GenerateKeyFromExtension = candidate
+            EXIT FUNCTION
+        END IF
+    NEXT i
+    
+    ' If all characters are used, return the first character (fallback)
+    GenerateKeyFromExtension = UCASE$(LEFT$(extension, 1))
+END FUNCTION
+
+'******************************************************************************
+'* SUB: AddFormat
+'* Purpose: Add a format to the registry (automatically expands array).
+'* Parameters:
+'*   extension (BYVAL STRING): File extension without dot.
+'*   reader (BYVAL DWORD): Pointer to read function.
+'*   writer (BYVAL DWORD): Pointer to write function.
+'******************************************************************************
+SUB AddFormat (BYVAL extension AS STRING, BYVAL readPtr AS DWORD, BYVAL writePtr AS DWORD)
+    DIM currentCount AS INTEGER
+    DIM newIndex AS INTEGER
+    DIM keyChar AS STRING
+    DIM displayName AS STRING
+    
+    ' Generate unique key from extension
+    keyChar = GenerateKeyFromExtension(extension)
+    
+    ' Create display name with key highlighted (e.g., "[V]GA", "BM[P]")
+    DIM keyPos AS INTEGER
+    keyPos = INSTR(UCASE$(extension), keyChar)
+    IF keyPos > 0 THEN
+        displayName = LEFT$(extension, keyPos - 1) + "[" + keyChar + "]" + MID$(extension, keyPos + 1)
+    ELSE
+        displayName = "[" + keyChar + "] " + extension
+    END IF
+    
+    ' Get current array size (0 if not yet dimensioned)
+    ON ERROR RESUME NEXT
+    currentCount = UBOUND(formatRegistry)
+    IF ERR <> 0 THEN
+        currentCount = 0
+        ERRCLEAR
+    END IF
+    ON ERROR GOTO 0
+    
+    ' Expand array to hold one more format
+    newIndex = currentCount + 1
+    REDIM PRESERVE formatRegistry(newIndex)
+    
+    ' Store the format data
+    formatRegistry(newIndex).keyChar = keyChar
+    formatRegistry(newIndex).extension = extension
+    formatRegistry(newIndex).displayName = displayName
+    formatRegistry(newIndex).readFunction = readPtr
+    formatRegistry(newIndex).writeFunction = writePtr
+END SUB
+
+'******************************************************************************
+'* SUB: InitializeFormatRegistry
+'* Purpose: Initialize the file format registry with supported formats.
+'******************************************************************************
+SUB InitializeFormatRegistry
+    ' Add each format with method pointers - keys and display names auto-generated
+    AddFormat "VGA", CODEPTR32(FileVga_Read), CODEPTR32(FileVga_Write)
+    AddFormat "BAS", CODEPTR32(FileBas_Read), CODEPTR32(FileBas_Write)
+    AddFormat "PCX", CODEPTR32(FilePcx_Read), CODEPTR32(FilePcx_Write)
+    AddFormat "BMP", CODEPTR32(FileBmp_Read), CODEPTR32(FileBmp_Write)
+    AddFormat "ICO", CODEPTR32(FileIco_Read), CODEPTR32(FileIco_Write)
+    AddFormat "XPM", CODEPTR32(FileXpm_Read), CODEPTR32(FileXpm_Write)
+    AddFormat "TGA", CODEPTR32(FileTga_Read), CODEPTR32(FileTga_Write)
+    'AddFormat "TIF", CODEPTR32(FileTif_Read), CODEPTR32(FileTif_Write)
+    'AddFormat "GIF", CODEPTR32(FileGif_Read), CODEPTR32(FileGif_Write)
+END SUB
+
+'******************************************************************************
+'* FUNCTION: BuildFormatPrompt
+'* Purpose: Build the format prompt string from the registry.
+'* Returns: (STRING) The prompt string like "[V]GA, [B]AS, [P]CX, ..."
+'******************************************************************************
+FUNCTION BuildFormatPrompt AS STRING
+    DIM prompt AS STRING
+    DIM i AS INTEGER
+    DIM maxFormats AS INTEGER
+    
+    maxFormats = UBOUND(formatRegistry)
+    FOR i = 1 TO maxFormats
+        IF i > 1 THEN prompt = prompt + ", "
+        prompt = prompt + RTRIM$(formatRegistry(i).displayName)
+    NEXT i
+    prompt = prompt + ": "
+    BuildFormatPrompt = prompt
+END FUNCTION
+
+'******************************************************************************
+'* FUNCTION: FindFormatByKey
+'* Purpose: Find format index by key character (case insensitive).
+'* Parameters:
+'*   keyChar (BYVAL STRING): The key character to search for.
+'* Returns: (INTEGER) Array index or 0 if not found.
+'******************************************************************************
+FUNCTION FindFormatByKey (BYVAL keyChar AS STRING) AS INTEGER
+    DIM i AS INTEGER
+    DIM maxFormats AS INTEGER
+    keyChar = UCASE$(keyChar)
+    
+    maxFormats = UBOUND(formatRegistry)
+    FOR i = 1 TO maxFormats
+        IF formatRegistry(i).keyChar = keyChar THEN
+            FindFormatByKey = i
+            EXIT FUNCTION
+        END IF
+    NEXT i
+    FindFormatByKey = 0
+END FUNCTION
+
+'******************************************************************************
+'* SUB: CallFormatRead
+'* Purpose: Method pointer-based format dispatcher for read operations.
+'* Parameters:
+'*   formatID (BYVAL INTEGER): Index into formatRegistry array.
+'*   fullPath (BYVAL STRING): The full file path.
+'*   errorMessage (AS STRING): Error message output parameter.
+'******************************************************************************
+SUB CallFormatRead (BYVAL formatID AS INTEGER, BYVAL fullPath AS STRING, errorMessage AS STRING)
+    DIM maxFormats AS INTEGER
+    DIM readPtr AS DWORD
+    
+    ' Validate format ID
+    maxFormats = UBOUND(formatRegistry)
+    IF formatID < 1 OR formatID > maxFormats THEN
+        errorMessage = "Invalid format ID: " + STR$(formatID)
+        EXIT SUB
+    END IF
+    
+    ' Get function pointer and call dynamically with explicit fallbacks
+    readPtr = formatRegistry(formatID).readFunction
+    IF readPtr <> 0 THEN
+        IF readPtr = CODEPTR32(FileVga_Read) THEN 
+            CALL FileVga_Read(fullPath, errorMessage)
+        ELSEIF readPtr = CODEPTR32(FileBas_Read) THEN
+            CALL FileBas_Read(fullPath, errorMessage)
+        ELSEIF readPtr = CODEPTR32(FilePcx_Read) THEN
+            CALL FilePcx_Read(fullPath, errorMessage)
+        ELSEIF readPtr = CODEPTR32(FileBmp_Read) THEN
+            CALL FileBmp_Read(fullPath, errorMessage)
+        ELSEIF readPtr = CODEPTR32(FileIco_Read) THEN
+            CALL FileIco_Read(fullPath, errorMessage)
+        ELSEIF readPtr = CODEPTR32(FileXpm_Read) THEN
+            CALL FileXpm_Read(fullPath, errorMessage)
+        ELSEIF readPtr = CODEPTR32(FileTga_Read) THEN
+            CALL FileTga_Read(fullPath, errorMessage)
+        ELSE
+            ' Fallback for any future formats
+            'CALL DWORD readPtr BDECL (fullPath, errorMessage)
+            errorMessage = "No read function for format: " + formatRegistry(formatID).extension
+        END IF
+    ELSE
+        errorMessage = "No read function for format: " + formatRegistry(formatID).extension
+    END IF
+END SUB
+
+'******************************************************************************
+'* SUB: CallFormatWrite
+'* Purpose: Method pointer-based format dispatcher for write operations.
+'* Parameters:
+'*   formatID (BYVAL INTEGER): Index into formatRegistry array.
+'*   fullPath (BYVAL STRING): The full file path.
+'*   errorMessage (AS STRING): Error message output parameter.
+'******************************************************************************
+SUB CallFormatWrite (BYVAL formatID AS INTEGER, BYVAL fullPath AS STRING, errorMessage AS STRING)
+    DIM maxFormats AS INTEGER
+    DIM writePtr AS DWORD
+    
+    ' Validate format ID
+    maxFormats = UBOUND(formatRegistry)
+    IF formatID < 1 OR formatID > maxFormats THEN
+        errorMessage = "Invalid format ID: " + STR$(formatID)
+        EXIT SUB
+    END IF
+    
+    ' Get function pointer and call dynamically with explicit fallbacks
+    writePtr = formatRegistry(formatID).writeFunction
+    IF writePtr <> 0 THEN
+        IF writePtr = CODEPTR32(FileVga_Write) THEN
+            CALL FileVga_Write(fullPath, errorMessage)
+        ELSEIF writePtr = CODEPTR32(FileBas_Write) THEN
+            CALL FileBas_Write(fullPath, errorMessage)
+        ELSEIF writePtr = CODEPTR32(FilePcx_Write) THEN
+            CALL FilePcx_Write(fullPath, errorMessage)
+        ELSEIF writePtr = CODEPTR32(FileBmp_Write) THEN
+            CALL FileBmp_Write(fullPath, errorMessage)
+        ELSEIF writePtr = CODEPTR32(FileIco_Write) THEN
+            CALL FileIco_Write(fullPath, errorMessage)
+        ELSEIF writePtr = CODEPTR32(FileXpm_Write) THEN
+            CALL FileXpm_Write(fullPath, errorMessage)
+        ELSEIF writePtr = CODEPTR32(FileTga_Write) THEN
+            CALL FileTga_Write(fullPath, errorMessage)
+        ELSE
+            ' Fallback for any future formats
+            CALL DWORD writePtr BDECL (fullPath, errorMessage)
+        END IF
+    ELSE
+        errorMessage = "No write function for format: " + formatRegistry(formatID).extension
+    END IF
+END SUB
+
+'******************************************************************************
+'* SUB: LoadToolIcons
+'* Purpose: Loads tool icon data from ICONS.SUB into an array.
+'******************************************************************************
+SUB LoadToolIcons (toolIcons() AS STRING)
+    DIM i AS INTEGER
+    DIM j AS INTEGER
+    DIM iconRow AS STRING
+    RESTORE  ' Reset DATA pointer to beginning
+    FOR i = 0 TO %NUM_TOOLS - 1
+        toolIcons(i) = ""
+        FOR j = 1 TO 8
+            READ iconRow
+            toolIcons(i) = toolIcons(i) + iconRow
+        NEXT j
+    NEXT i
 END SUB
 
 '******************************************************************************
@@ -171,7 +398,7 @@ END SUB
 '*   isLineMode (BYVAL INTEGER): Flag for line drawing mode.
 '*   isSaved (BYREF INTEGER): Flag indicating if the file has unsaved changes.
 '******************************************************************************
-SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BYVAL drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, BYVAL selectedTool AS INTEGER, BYVAL currentFileName AS STRING, toolIcons() AS STRING)
+SUB HandleMouseInput (mouse AS MouseInfo, BYVAL drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, BYVAL selectedTool AS INTEGER, BYVAL currentFileName AS STRING, toolIcons() AS STRING)
     DIM canvasX AS INTEGER
     DIM canvasY AS INTEGER
     DIM screenX AS INTEGER
@@ -186,7 +413,7 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
     canvasX = mouse.x / %GRID_X_STEP
     canvasY = (mouse.y - %GRID_START_Y) / %GRID_Y_STEP
 
-    IF canvasX < 0 OR canvasX > spr.spriteWidth OR canvasY < 0 OR canvasY > spr.spriteHeight THEN EXIT SUB
+    IF canvasX < 0 OR canvasX > currentSprite.spriteWidth OR canvasY < 0 OR canvasY > currentSprite.spriteHeight THEN EXIT SUB
 
     colorToUse = -1
     IF mouse.button = 1 THEN colorToUse = drawingColor
@@ -195,21 +422,21 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
     SELECT CASE selectedTool
         CASE %TOOL_DRAW
             IF colorToUse <> -1 THEN
-                IF canvas(canvasX, canvasY) <> colorToUse THEN
-                    canvas(canvasX, canvasY) = colorToUse
+                IF currentCanvas(canvasX, canvasY) <> colorToUse THEN
+                    currentCanvas(canvasX, canvasY) = colorToUse
                     isSaved = %FALSE
                     ' Incremental bounding box update instead of full scan
                     IF colorToUse <> 0 THEN  ' Non-transparent pixel
-                        IF spr.boundingBoxX2 = -1 THEN  ' Empty sprite, initialize
-                            spr.boundingBoxX1 = canvasX
-                            spr.boundingBoxY1 = canvasY
-                            spr.boundingBoxX2 = canvasX
-                            spr.boundingBoxY2 = canvasY
+                        IF currentSprite.boundingBoxX2 = -1 THEN  ' Empty sprite, initialize
+                            currentSprite.boundingBoxX1 = canvasX
+                            currentSprite.boundingBoxY1 = canvasY
+                            currentSprite.boundingBoxX2 = canvasX
+                            currentSprite.boundingBoxY2 = canvasY
                         ELSE
-                            IF canvasX < spr.boundingBoxX1 THEN spr.boundingBoxX1 = canvasX
-                            IF canvasY < spr.boundingBoxY1 THEN spr.boundingBoxY1 = canvasY  
-                            IF canvasX > spr.boundingBoxX2 THEN spr.boundingBoxX2 = canvasX
-                            IF canvasY > spr.boundingBoxY2 THEN spr.boundingBoxY2 = canvasY
+                            IF canvasX < currentSprite.boundingBoxX1 THEN currentSprite.boundingBoxX1 = canvasX
+                            IF canvasY < currentSprite.boundingBoxY1 THEN currentSprite.boundingBoxY1 = canvasY  
+                            IF canvasX > currentSprite.boundingBoxX2 THEN currentSprite.boundingBoxX2 = canvasX
+                            IF canvasY > currentSprite.boundingBoxY2 THEN currentSprite.boundingBoxY2 = canvasY
                         END IF
                     END IF
                     CanvasToScreen canvasX, canvasY, screenX, screenY
@@ -250,60 +477,22 @@ SUB HandleMouseInput (mouse AS MouseInfo, spr AS Sprite, canvas() AS INTEGER, BY
                 SELECT CASE selectedTool
                     CASE %TOOL_RECTANGLE: 
                         ClearRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
-                        DrawRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                        DrawRectangle currentSprite, currentCanvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
                     CASE %TOOL_FILLED_RECTANGLE: 
                         ClearFilledRectanglePreview firstClickX, firstClickY, lastPreviewX, lastPreviewY
-                        DrawFilledRectangle spr, canvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
+                        DrawFilledRectangle currentSprite, currentCanvas(), firstClickX, firstClickY, canvasX, canvasY, drawingColor
                     CASE %TOOL_CIRCLE: 
-                        DrawCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                        DrawCircle currentSprite, currentCanvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
                     CASE %TOOL_FILLED_CIRCLE: 
-                        DrawFilledCircle spr, canvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
+                        DrawFilledCircle currentSprite, currentCanvas(), firstClickX, firstClickY, INT(SQR((canvasX - firstClickX)^2 + (canvasY - firstClickY)^2)), drawingColor
                 END SELECT
-                RenderCanvas spr, canvas()
-                DrawUI drawingColor, currentFileName, spr, selectedTool, toolIcons()
+                RenderCanvas currentSprite, currentCanvas()
+                DrawUI drawingColor, currentFileName, currentSprite, selectedTool, toolIcons()
                 isSaved = %FALSE
                 isFirstClick = %FALSE
             END IF
     END SELECT
 END SUB
-
-'******************************************************************************
-'* SUB: HandleKeyboardInput
-'* Purpose: Processes keyboard presses for editor commands.
-'* Parameters:
-'*   drawingColor (BYREF INTEGER): The current drawing color.
-'*   isLineMode (BYREF INTEGER): Flag for line drawing mode.
-'*   isSaved (BYREF INTEGER): Flag for unsaved changes.
-'*   currentFileName (BYREF STRING): The current name of the file.
-'*   spr (BYREF Sprite): The sprite metadata.
-'*   canvas() (BYREF INTEGER): The sprite data array.
-'******************************************************************************
-FUNCTION HandleKeyboardInput (drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER, selectedTool AS INTEGER) AS INTEGER
-    DIM inputKey AS STRING
-    DIM keyCode AS INTEGER
-    HandleKeyboardInput = %FALSE
-    inputKey = INKEY$
-    IF inputKey = "" THEN EXIT FUNCTION
-    keyCode = ASC(inputKey)
-    IF LEN(inputKey) > 1 THEN keyCode = ASC(RIGHT$(inputKey, 1))
-
-    SELECT CASE keyCode
-        CASE %KEY_N: HandleNewFile isSaved, isLineMode, currentFileName, spr, canvas(): HandleKeyboardInput = %TRUE
-        CASE %KEY_C: HandleChangeColor drawingColor: HandleKeyboardInput = %TRUE
-        CASE %KEY_L: HandleLoadFile isSaved, currentFileName, spr, canvas(): HandleKeyboardInput = %TRUE
-        CASE %KEY_S: HandleSaveFile currentFileName, isSaved, spr, canvas()
-        CASE %KEY_INSERT: isLineMode = NOT isLineMode
-        CASE %KEY_T: HandleToolSelection selectedTool: HandleKeyboardInput = %TRUE
-        CASE %KEY_ESC: HandleExit isSaved
-        CASE 0 ' Extended key
-            SELECT CASE keyCode
-                CASE %KEY_LEFT_ARROW: IF selectedTool = %TOOL_MOVE_LEFT THEN MovePixelsLeft spr, canvas(): isSaved = %FALSE
-                CASE %KEY_RIGHT_ARROW: IF selectedTool = %TOOL_MOVE_RIGHT THEN MovePixelsRight spr, canvas(): isSaved = %FALSE
-                CASE %KEY_UP_ARROW: IF selectedTool = %TOOL_MOVE_UP THEN MovePixelsUp spr, canvas(): isSaved = %FALSE
-                CASE %KEY_DOWN_ARROW: IF selectedTool = %TOOL_MOVE_DOWN THEN MovePixelsDown spr, canvas(): isSaved = %FALSE
-            END SELECT
-    END SELECT
-END FUNCTION
 
 '******************************************************************************
 '* FUNCTION: CheckUnsavedChanges
@@ -334,13 +523,13 @@ END FUNCTION
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleNewFile (isSaved AS INTEGER, isLineMode AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER)
+SUB HandleNewFile (isSaved AS INTEGER, isLineMode AS INTEGER, currentFileName AS STRING)
     IF CheckUnsavedChanges(isSaved) = %FALSE THEN EXIT SUB
     isSaved = %TRUE
     isLineMode = %FALSE
     currentFileName = "UNBENANNT"
-    ClearCanvas spr, canvas()
-    RenderCanvas spr, canvas()
+    ClearCanvas currentSprite, currentCanvas()
+    RenderCanvas currentSprite, currentCanvas()
 END SUB
 
 '******************************************************************************
@@ -403,47 +592,45 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleLoadFile (isSaved AS INTEGER, currentFileName AS STRING, spr AS Sprite, canvas() AS INTEGER)
-    DIM path AS STRING
-    DIM fileName AS STRING
-    DIM fileType AS STRING
-    DIM fullPath AS STRING
-    DIM errorMessage AS STRING
+SUB HandleLoadFile (isSaved AS INTEGER, currentFileName AS STRING)
     IF CheckUnsavedChanges(isSaved) = %FALSE THEN EXIT SUB
 
     COLOR 15
+    DIM path AS STRING
     LOCATE 1, 1: INPUT "Path (if needed): ", path
     LOCATE 1, 1: PRINT STRING$(79, 32)
     IF path <> "" THEN path = path + "\"
+    DIM fileName AS STRING
     LOCATE 1, 1: INPUT "File-Name: ", fileName
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM, TG[A]: ", fileType
+    LOCATE 1, 1: PRINT BuildFormatPrompt()
+    DIM fileType AS STRING * 1
+    fileType = INPUT$(1)
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName
-    fullPath = path + LEFT$(fileName, 8)
-    ClearCanvas spr, canvas()
+    ClearCanvas currentSprite, currentCanvas()
 
-    SELECT CASE UCASE$(fileType)
-        CASE "V": FileVga_Read fullPath + ".VGA", spr, canvas(), errorMessage
-        CASE "B": FileBas_Read fullPath + ".BAS", spr, canvas(), errorMessage
-        CASE "P": FilePcx_Read fullPath + ".PCX", spr, canvas(), errorMessage
-        CASE "M": FileBmp_Read fullPath + ".BMP", spr, canvas(), errorMessage
-        CASE "I": FileIco_Read fullPath + ".ICO", spr, canvas(), errorMessage
-        CASE "X": FileXpm_Read fullPath + ".XPM", spr, canvas(), errorMessage
-        ' CASE "G": FileGIF_Read fullPath + ".GIF", spr, canvas(), errorMessage
-        ' CASE "T": FileTIF_Read fullPath + ".TIF", spr, canvas(), errorMessage
-        CASE "A": FileTga_Read fullPath + ".TGA", spr, canvas(), errorMessage
-    END SELECT
+    DIM errorMessage AS STRING
+    DIM formatID AS INTEGER
+    formatID = FindFormatByKey(fileType)
+    IF formatID > 0 THEN
+      DIM fullPath AS STRING
+      fullPath = path + LEFT$(fileName, 8) + "." + formatRegistry(formatID).extension
+      
+      CallFormatRead formatID, fullPath, errorMessage
+    ELSE
+        errorMessage = "Unknown file format: " + fileType
+    END IF
 
     IF errorMessage <> "" THEN
-        BEEP: LOCATE 1, 1: COLOR 4: PRINT "Error: " + errorMessage
+        LOCATE 1, 1: COLOR 4: PRINT "Error: " + errorMessage: BEEP
         SLEEP 2
         LOCATE 1, 1: PRINT STRING$(79, " ")
     END IF
 
-    UpdateSpriteBoundingBox spr, canvas()
-    RenderCanvas spr, canvas()
+    ' Bounding box already updated by format reader
+    RenderCanvas currentSprite, currentCanvas()
     isSaved = %TRUE
 END SUB
 
@@ -456,38 +643,36 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-SUB HandleSaveFile (currentFileName AS STRING, isSaved AS INTEGER, spr AS Sprite, canvas() AS INTEGER)
-    DIM path AS STRING
-    DIM fileName AS STRING
-    DIM fileType AS STRING
-    DIM fullPath AS STRING
-    DIM errorMessage AS STRING
+SUB HandleSaveFile (currentFileName AS STRING, isSaved AS INTEGER)
     COLOR 15
+    DIM path AS STRING
     LOCATE 1, 1: INPUT "Path (if needed): ", path
     LOCATE 1, 1: PRINT STRING$(79, 32)
     IF path <> "" THEN path = path + "\"
+    DIM fileName AS STRING
     LOCATE 1, 1: INPUT "File-Name: ", fileName
     LOCATE 1, 1: PRINT STRING$(79, 32)
-    LOCATE 1, 1: INPUT "[V]GA, [B]AS, [P]CX, B[M]P, [I]CO, [X]PM, TG[A]: ", fileType
+    LOCATE 1, 1: PRINT BuildFormatPrompt()
+    DIM fileType AS STRING * 1
+    fileType = INPUT$(1)
     LOCATE 1, 1: PRINT STRING$(79, 32)
     
     currentFileName = fileName
-    fullPath = path + LEFT$(fileName, 8)
     
-    SELECT CASE LCASE$(fileType)
-        CASE "v": FileVga_Write fullPath + ".VGA", spr, canvas(), errorMessage
-        CASE "b": FileBas_Write fullPath + ".BAS", spr, canvas(), errorMessage
-        CASE "p": FilePcx_Write fullPath + ".PCX", spr, canvas(), errorMessage
-        CASE "m": FileBmp_Write fullPath + ".BMP", spr, canvas(), errorMessage
-        CASE "i": FileIco_Write fullPath + ".ICO", spr, canvas(), errorMessage
-        CASE "x": FileXpm_Write fullPath + ".XPM", spr, canvas(), errorMessage
-        ' CASE "g": FileGIF_Write fullPath + ".GIF", spr, canvas(), errorMessage
-        ' CASE "t": FileTIF_Write fullPath + ".TIF", spr, canvas(), errorMessage
-        CASE "a": FileTga_Write fullPath + ".TGA", spr, canvas(), errorMessage
-    END SELECT
+    DIM errorMessage AS STRING
+    DIM formatID AS INTEGER
+    formatID = FindFormatByKey(fileType)
+    IF formatID > 0 THEN
+      DIM fullPath AS STRING
+      fullPath = path + LEFT$(fileName, 8) + "." + formatRegistry(formatID).extension
+      
+      CallFormatWrite formatID, fullPath, errorMessage
+    ELSE
+        errorMessage = "Unknown file format: " + fileType
+    END IF
 
     IF errorMessage <> "" THEN
-        BEEP: LOCATE 1, 1: COLOR 4: PRINT "Error: " + errorMessage
+        LOCATE 1, 1: COLOR 4: PRINT "Error: " + errorMessage: BEEP
         SLEEP 2
         LOCATE 1, 1: PRINT STRING$(79, " ")
     ELSE
@@ -506,24 +691,6 @@ SUB HandleExit (BYVAL isSaved AS INTEGER)
     SetMouseVisibility 0
     SCREEN 0
     END
-END SUB
-
-'******************************************************************************
-'* SUB: LoadToolIcons
-'* Purpose: Loads tool icon data from ICONS.SUB into an array.
-'******************************************************************************
-SUB LoadToolIcons (toolIcons() AS STRING)
-    DIM i AS INTEGER
-    DIM j AS INTEGER
-    DIM iconRow AS STRING
-    RESTORE  ' Reset DATA pointer to beginning
-    FOR i = 0 TO %NUM_TOOLS - 1
-        toolIcons(i) = ""
-        FOR j = 1 TO 8
-            READ iconRow
-            toolIcons(i) = toolIcons(i) + iconRow
-        NEXT j
-    NEXT i
 END SUB
 
 '******************************************************************************
@@ -583,14 +750,106 @@ SUB HandleToolSelection (selectedTool AS INTEGER)
 END SUB
 
 '******************************************************************************
-'* FUNCTION: WaitForKey
-'* Purpose: Waits for a key press and returns the key code.
-'* Returns: (STRING) The key that was pressed.
+'* SUB: HandleKeyboardInput
+'* Purpose: Processes keyboard presses for editor commands.
+'* Parameters:
+'*   drawingColor (BYREF INTEGER): The current drawing color.
+'*   isLineMode (BYREF INTEGER): Flag for line drawing mode.
+'*   isSaved (BYREF INTEGER): Flag for unsaved changes.
+'*   currentFileName (BYREF STRING): The current name of the file.
+'*   spr (BYREF Sprite): The sprite metadata.
+'*   canvas() (BYREF INTEGER): The sprite data array.
 '******************************************************************************
-FUNCTION WaitForKey () AS STRING
-    DIM currentKey AS STRING
-    DO
-        currentKey = INKEY$
-    LOOP WHILE currentKey = ""
-    WaitForKey = currentKey
+FUNCTION HandleKeyboardInput (drawingColor AS INTEGER, isLineMode AS INTEGER, isSaved AS INTEGER, currentFileName AS STRING, selectedTool AS INTEGER) AS INTEGER
+    DIM inputKey AS STRING
+    DIM keyCode AS INTEGER
+    HandleKeyboardInput = %FALSE
+    inputKey = INKEY$
+    IF inputKey = "" THEN EXIT FUNCTION
+    keyCode = ASC(inputKey)
+    IF LEN(inputKey) > 1 THEN keyCode = ASC(RIGHT$(inputKey, 1))
+
+    SELECT CASE keyCode
+        CASE %KEY_N: HandleNewFile isSaved, isLineMode, currentFileName: HandleKeyboardInput = %TRUE
+        CASE %KEY_C: HandleChangeColor drawingColor: HandleKeyboardInput = %TRUE
+        CASE %KEY_L: HandleLoadFile isSaved, currentFileName: HandleKeyboardInput = %TRUE
+        CASE %KEY_S: HandleSaveFile currentFileName, isSaved
+        CASE %KEY_INSERT: isLineMode = NOT isLineMode
+        CASE %KEY_T: HandleToolSelection selectedTool: HandleKeyboardInput = %TRUE
+        CASE %KEY_ESC: HandleExit isSaved
+        CASE 0 ' Extended key
+            SELECT CASE keyCode
+                CASE %KEY_LEFT_ARROW: IF selectedTool = %TOOL_MOVE_LEFT THEN MovePixelsLeft currentSprite, currentCanvas(): isSaved = %FALSE
+                CASE %KEY_RIGHT_ARROW: IF selectedTool = %TOOL_MOVE_RIGHT THEN MovePixelsRight currentSprite, currentCanvas(): isSaved = %FALSE
+                CASE %KEY_UP_ARROW: IF selectedTool = %TOOL_MOVE_UP THEN MovePixelsUp currentSprite, currentCanvas(): isSaved = %FALSE
+                CASE %KEY_DOWN_ARROW: IF selectedTool = %TOOL_MOVE_DOWN THEN MovePixelsDown currentSprite, currentCanvas(): isSaved = %FALSE
+            END SELECT
+    END SELECT
 END FUNCTION
+
+'******************************************************************************
+'* SUB: MainEditorLoop
+'* Purpose: The main event loop for the sprite editor.
+'* Parameters: None
+'******************************************************************************
+SUB MainEditorLoop
+    DIM mouse AS MouseInfo
+    DIM cursorBoxColorToggle AS INTEGER
+    DIM cursorBoxColor AS INTEGER
+    DIM drawingColor AS INTEGER
+    DIM currentX AS INTEGER
+    DIM currentY AS INTEGER
+    DIM prevX AS INTEGER
+    DIM prevY AS INTEGER
+    DIM isSaved AS INTEGER
+    DIM isLineMode AS INTEGER
+    DIM selectedTool AS INTEGER
+    DIM currentFileName AS STRING
+    DIM toolIcons(0 TO %NUM_TOOLS - 1) AS STRING
+
+    InitializeSprite currentSprite, currentCanvas()
+    LoadToolIcons toolIcons()
+
+    isSaved = %TRUE
+    isLineMode = %FALSE
+    selectedTool = %TOOL_DRAW
+    currentFileName = "UNBENANNT"
+    drawingColor = %DEFAULT_DRAW_COLOR
+    currentX = 0
+    currentY = %GRID_START_Y
+    cursorBoxColorToggle = 1
+    
+    CLS
+    DrawGrid
+    DrawUI drawingColor, currentFileName, currentSprite, selectedTool, toolIcons()
+    
+    DO
+        GetMouseState mouse
+        prevX = currentX
+        prevY = currentY
+        currentX = INT(mouse.x / %GRID_X_STEP) * %GRID_X_STEP
+        currentY = INT(mouse.y / %GRID_Y_STEP) * %GRID_Y_STEP + 2
+
+        IF currentX > %GRID_X_MAX - %GRID_X_STEP THEN currentX = %GRID_X_MAX - %GRID_X_STEP
+        IF currentX < 0 THEN currentX = 0
+        IF currentY < %GRID_START_Y THEN currentY = %GRID_START_Y
+        IF currentY > %GRID_Y_MAX - %GRID_Y_STEP THEN currentY = %GRID_Y_MAX - %GRID_Y_STEP
+
+        ' Redraw cursor every iteration to maintain flashing effect
+        LINE (prevX, prevY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), %GRID_COLOR, B
+        IF cursorBoxColorToggle = 1 THEN cursorBoxColor = 4 ELSE cursorBoxColor = 14
+        LINE (currentX, currentY)-STEP(%GRID_X_STEP, %GRID_Y_STEP), cursorBoxColor, B
+        IF cursorBoxColorToggle = 1 THEN cursorBoxColorToggle = 2 ELSE cursorBoxColorToggle = 1
+
+        HandleMouseInput mouse, drawingColor, isLineMode, isSaved, selectedTool, currentFileName, toolIcons()
+        IF HandleKeyboardInput(drawingColor, isLineMode, isSaved, currentFileName, selectedTool) = %TRUE THEN
+            DrawUI drawingColor, currentFileName, currentSprite, selectedTool, toolIcons()
+        END IF
+    LOOP
+END SUB
+
+InitializeFormatRegistry
+InitializeSystem mouse
+ShowIntro
+WaitForInput
+MainEditorLoop
