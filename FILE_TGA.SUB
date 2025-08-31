@@ -84,9 +84,9 @@ SUB FileTga_Write (fullPath AS STRING, errorMessage AS STRING)
           r = (vgaPalette(byteVal) \ 65536) AND &HFF
           g = (vgaPalette(byteVal) \ 256) AND &HFF
           b = vgaPalette(byteVal) AND &HFF
-          PUT #fileNum, , r
-          PUT #fileNum, , g
           PUT #fileNum, , b
+          PUT #fileNum, , g
+          PUT #fileNum, , r
       NEXT
 
       ' --- Write Image Data (bottom-up scanlines for TGA) ---

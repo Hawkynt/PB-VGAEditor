@@ -115,9 +115,7 @@ SUB FileBmp_Write (fullPath AS STRING, errorMessage AS STRING)
           PUT #fileNum, , vgaPalette(byteVal)
       NEXT
       
-      DIM x AS INTEGER
-      DIM y AS INTEGER
-      
+      DIM x AS DWORD, y AS DWORD
       FOR y = currentSprite.boundingBoxY2 TO currentSprite.boundingBoxY1 STEP -1
         FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2 STEP 2
           byteVal = currentCanvas(x, y)
