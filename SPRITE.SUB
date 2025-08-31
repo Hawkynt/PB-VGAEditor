@@ -8,7 +8,7 @@
 '*   spr (BYREF Sprite): The sprite metadata object to update.
 '*   canvas() (BYREF INTEGER): The sprite data array to analyze.
 '******************************************************************************
-SUB UpdateSpriteBoundingBox (spr AS Sprite, canvas() AS INTEGER)
+SUB UpdateSpriteBoundingBox (spr AS Sprite, canvas() AS BYTE)
     DIM x AS INTEGER, y AS INTEGER
     spr.boundingBoxX1 = spr.spriteWidth + 1
     spr.boundingBoxY1 = spr.spriteHeight + 1
@@ -33,7 +33,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to clear.
 '******************************************************************************
-SUB ClearCanvas (spr AS Sprite, canvas() AS INTEGER)
+SUB ClearCanvas (spr AS Sprite, canvas() AS BYTE)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = 0 TO spr.spriteHeight
         FOR x = 0 TO spr.spriteWidth
@@ -50,10 +50,10 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata object to initialize.
 '*   canvas() (BYREF INTEGER): The integer array to be dimensioned.
 '******************************************************************************
-SUB InitializeSprite (spr AS Sprite, canvas() AS INTEGER)
+SUB InitializeSprite (spr AS Sprite, canvas() AS BYTE)
     spr.spriteWidth = (%GRID_X_MAX / %GRID_X_STEP)
     spr.spriteHeight = (%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP
-    REDIM canvas(0 TO spr.spriteWidth, 0 TO spr.spriteHeight) AS INTEGER
+    REDIM canvas(0 TO spr.spriteWidth, 0 TO spr.spriteHeight) AS BYTE
     ClearCanvas spr, canvas()
 END SUB
 
@@ -93,7 +93,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to render.
 '******************************************************************************
-SUB RenderCanvas (spr AS Sprite, canvas() AS INTEGER)
+SUB RenderCanvas (spr AS Sprite, canvas() AS BYTE)
     DIM x AS INTEGER, y AS INTEGER, screenX AS INTEGER, screenY AS INTEGER
     CLS
     DrawGrid
@@ -177,7 +177,7 @@ END SUB
 '* SUB: MovePixelsLeft
 '* Purpose: Shifts all pixels on the canvas one position to the left.
 '******************************************************************************
-SUB MovePixelsLeft (spr AS Sprite, canvas() AS INTEGER)
+SUB MovePixelsLeft (spr AS Sprite, canvas() AS BYTE)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = 0 TO spr.spriteHeight
         FOR x = 0 TO spr.spriteWidth - 1
@@ -192,7 +192,7 @@ END SUB
 '* SUB: MovePixelsRight
 '* Purpose: Shifts all pixels on the canvas one position to the right.
 '******************************************************************************
-SUB MovePixelsRight (spr AS Sprite, canvas() AS INTEGER)
+SUB MovePixelsRight (spr AS Sprite, canvas() AS BYTE)
     DIM x AS INTEGER, y AS INTEGER
     FOR y = 0 TO spr.spriteHeight
         FOR x = spr.spriteWidth TO 1 STEP -1
@@ -207,7 +207,7 @@ END SUB
 '* SUB: MovePixelsUp
 '* Purpose: Shifts all pixels on the canvas one position up.
 '******************************************************************************
-SUB MovePixelsUp (spr AS Sprite, canvas() AS INTEGER)
+SUB MovePixelsUp (spr AS Sprite, canvas() AS BYTE)
     DIM x AS INTEGER, y AS INTEGER
     FOR x = 0 TO spr.spriteWidth
         FOR y = 0 TO spr.spriteHeight - 1
@@ -222,7 +222,7 @@ END SUB
 '* SUB: MovePixelsDown
 '* Purpose: Shifts all pixels on the canvas one position down.
 '******************************************************************************
-SUB MovePixelsDown (spr AS Sprite, canvas() AS INTEGER)
+SUB MovePixelsDown (spr AS Sprite, canvas() AS BYTE)
     DIM x AS INTEGER, y AS INTEGER
     FOR x = 0 TO spr.spriteWidth
         FOR y = spr.spriteHeight TO 1 STEP -1
@@ -237,7 +237,7 @@ END SUB
 '* SUB: DrawRectangle
 '* Purpose: Draws an unfilled rectangle on the canvas.
 '******************************************************************************
-SUB DrawRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
+SUB DrawRectangle (spr AS Sprite, canvas() AS BYTE, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     ' Make sure coordinates are in proper order
     IF x1 > x2 THEN SWAP x1, x2
@@ -258,7 +258,7 @@ END SUB
 '* SUB: DrawFilledRectangle
 '* Purpose: Draws a filled rectangle on the canvas.
 '******************************************************************************
-SUB DrawFilledRectangle (spr AS Sprite, canvas() AS INTEGER, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
+SUB DrawFilledRectangle (spr AS Sprite, canvas() AS BYTE, BYVAL x1 AS INTEGER, BYVAL y1 AS INTEGER, BYVAL x2 AS INTEGER, BYVAL y2 AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER
     ' Make sure coordinates are in proper order
     IF x1 > x2 THEN SWAP x1, x2
@@ -276,7 +276,7 @@ END SUB
 '* SUB: DrawCircle
 '* Purpose: Draws an unfilled circle on the canvas.
 '******************************************************************************
-SUB DrawCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL drawColor AS INTEGER)
+SUB DrawCircle (spr AS Sprite, canvas() AS BYTE, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, d AS INTEGER
     x = 0
     y = radius
@@ -305,7 +305,7 @@ END SUB
 '* SUB: DrawFilledCircle
 '* Purpose: Draws a filled circle on the canvas.
 '******************************************************************************
-SUB DrawFilledCircle (spr AS Sprite, canvas() AS INTEGER, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL drawColor AS INTEGER)
+SUB DrawFilledCircle (spr AS Sprite, canvas() AS BYTE, BYVAL centerX AS INTEGER, BYVAL centerY AS INTEGER, BYVAL radius AS INTEGER, BYVAL drawColor AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, d AS INTEGER, i AS INTEGER
     x = 0
     y = radius

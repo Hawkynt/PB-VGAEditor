@@ -7,6 +7,7 @@
 
 ' Key Codes
 %KEY_ESC = 27
+%KEY_ENTER = 13
 %KEY_INSERT = 82
 %KEY_C = 99
 %KEY_L = 108
@@ -75,7 +76,7 @@ DIM formatRegistry(0) AS SHARED FileFormat
 
 ' Shared variables for method pointer workaround (arrays can't be passed to method pointers)
 DIM currentSprite AS SHARED Sprite
-DIM currentCanvas(1, 1) AS SHARED INTEGER
+DIM currentCanvas(1, 1) AS SHARED BYTE
 
 ' Initialize shared variables before use (canvas will be dimensioned in InitializeSprite)
 currentSprite.spriteWidth = (%GRID_X_MAX / %GRID_X_STEP)
@@ -219,7 +220,7 @@ SUB InitializeFormatRegistry
     AddFormat "ICO", CODEPTR32(FileIco_Read), CODEPTR32(FileIco_Write)
     AddFormat "XPM", CODEPTR32(FileXpm_Read), CODEPTR32(FileXpm_Write)
     AddFormat "TGA", CODEPTR32(FileTga_Read), CODEPTR32(FileTga_Write)
-    'AddFormat "TIF", CODEPTR32(FileTif_Read), CODEPTR32(FileTif_Write)
+    AddFormat "TIF", CODEPTR32(FileTif_Read), CODEPTR32(FileTif_Write)
     'AddFormat "GIF", CODEPTR32(FileGif_Read), CODEPTR32(FileGif_Write)
 END SUB
 
@@ -572,10 +573,10 @@ SUB HandleChangeColor (drawColor AS INTEGER)
                     
                     ' Draw new selection highlight after moving
                     LINE (%COLOR_GRID_X + selectedColorX * (%COLOR_GRID_STEP + 2) - 1, %COLOR_GRID_Y + selectedColorY * (%COLOR_GRID_STEP + 2) - 1)-STEP(%COLOR_GRID_STEP + 2, %COLOR_GRID_STEP + 2), 15, B
-            CASE 13 ' Enter
+            CASE %KEY_ENTER
                 drawColor = (selectedColorY * %COLOR_GRID_COLS) + selectedColorX
                 EXIT DO
-            CASE 27 ' ESC
+            CASE %KEY_ESC
                 drawColor = oldColor ' Revert to old color
                 EXIT DO
         END SELECT
@@ -737,9 +738,9 @@ SUB HandleToolSelection (selectedTool AS INTEGER)
                 iconX = %PREVIEW_X + (selectedTool MOD 2) * 20
                 iconY = %PREVIEW_Y + ((%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP) + 20 + (selectedTool \ 2) * 20
                 DrawIcon iconX, iconY, toolIcons(selectedTool), %TRUE
-            CASE 13 ' Enter
+            CASE %KEY_ENTER
                 EXIT DO
-            CASE 27 ' ESC
+            CASE %KEY_ESC
                 selectedTool = oldTool ' Revert to old tool
                 EXIT DO
         END SELECT
