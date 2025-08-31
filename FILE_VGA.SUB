@@ -44,6 +44,11 @@ SUB FileVga_Read (BYVAL fullPath AS STRING, errorMessage AS STRING)
     NEXT y
     CLOSE #fileNum
     
+    ' Update bounding box to match loaded data dimensions at (0,0)
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = canvasWidth - 1
+    currentSprite.boundingBoxY2 = canvasHeight - 1
 END SUB
 
 

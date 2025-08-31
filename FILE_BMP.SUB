@@ -155,8 +155,6 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
-    DIM spriteWidth AS DWORD
-    DIM spriteHeight AS DWORD
     errorMessage = ""
 
     fileNum = FREEFILE
@@ -186,28 +184,19 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
         errorMessage = "Compressed BMP not supported."
         CLOSE #fileNum : EXIT SUB
     END IF
-
-    spriteWidth = bmpIH.biWidth
-    spriteHeight = bmpIH.biHeight
     
-    IF spriteWidth <= 0 OR spriteHeight <= 0 THEN
+    IF bmpIH.biWidth <= 0 OR bmpIH.biHeight <= 0 THEN
         errorMessage = "Invalid BMP dimensions."
         CLOSE #fileNum : EXIT SUB
     END IF
 
     ' Calculate row padding (same as write function)
     DIM rowBytes AS DWORD
-    rowBytes = spriteWidth + 1
+    rowBytes = bmpIH.biWidth + 1
     SHIFT RIGHT rowBytes, 1
     
     DIM rowPadding AS DWORD  
     rowPadding = (4 - (rowBytes AND 3)) AND 3
-
-    ' Update sprite bounding box to match BMP dimensions at 0,0 position
-    currentSprite.boundingBoxX1 = 0
-    currentSprite.boundingBoxY1 = 0  
-    currentSprite.boundingBoxX2 = spriteWidth - 1
-    currentSprite.boundingBoxY2 = spriteHeight - 1
 
     ' Seek to pixel data
     SEEK fileNum, bmpH.bfOffBits
@@ -216,9 +205,9 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM byteVal AS BYTE
     DIM x AS INTEGER
     DIM y AS INTEGER
-    
-    FOR y = spriteHeight - 1 TO 0 STEP -1
-        FOR x = 0 TO spriteWidth - 1 STEP 2
+
+    FOR y = bmpIH.biHeight - 1 TO 0 STEP -1
+        FOR x = 0 TO bmpIH.biWidth - 1 STEP 2
             GET #fileNum, , byteVal
             currentCanvas(x + 1, y) = byteVal AND &H0F
             SHIFT RIGHT byteVal, 4
@@ -226,10 +215,10 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
         NEXT
         
         ' Handle odd width
-        IF x < spriteWidth THEN
+        IF x < bmpIH.biWidth THEN
             GET #fileNum, , byteVal
             SHIFT RIGHT byteVal, 4
-            currentCanvas(spriteWidth, y) = byteVal
+            currentCanvas(bmpIH.biWidth, y) = byteVal
         END IF
         
         ' Skip row padding
@@ -239,4 +228,10 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
     NEXT
 
     CLOSE #fileNum
+    
+    ' Update bounding box to match loaded data dimensions at (0,0)
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = bmpIH.biWidth - 1
+    currentSprite.boundingBoxY2 = bmpIH.biHeight - 1
 END SUB
