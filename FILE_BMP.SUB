@@ -83,9 +83,12 @@ SUB FileBmp_Write (fullPath AS STRING, errorMessage AS STRING)
       bmpIH.biPlanes = 1
       bmpIH.biBitCount = 4
       bmpIH.biCompression = 0
+      
+      %dpi72 = 2835
+      
       bmpIH.biSizeImage = imageSize
-      bmpIH.biXPelsPerMeter = 2835
-      bmpIH.biYPelsPerMeter = 2835
+      bmpIH.biXPelsPerMeter = %dpi72
+      bmpIH.biYPelsPerMeter = %dpi72
       bmpIH.biClrUsed = %paletteEntries
       bmpIH.biClrImportant = %paletteEntries
       PUT #fileNum, , bmpIH
@@ -116,16 +119,16 @@ SUB FileBmp_Write (fullPath AS STRING, errorMessage AS STRING)
       DIM y AS INTEGER
       
       FOR y = currentSprite.boundingBoxY2 TO currentSprite.boundingBoxY1 STEP -1
-        FOR x = 0 TO spriteWidth - 1 STEP 2
-          byteVal = currentCanvas(currentSprite.boundingBoxX1 + x, y)
+        FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2 STEP 2
+          byteVal = currentCanvas(x, y)
           SHIFT LEFT byteVal, 4
-          byteVal = byteVal OR currentCanvas(currentSprite.boundingBoxX1 + x + 1, y)
+          byteVal = byteVal OR currentCanvas(x + 1, y)
           PUT #fileNum, , byteVal
         NEXT
         
         ' Handle odd width: last pixel in high nibble, low nibble 0
-        IF x < spriteWidth THEN
-          byteVal = currentCanvas(currentSprite.boundingBoxX1 + spriteWidth, y)
+        IF x < currentSprite.boundingBoxX2 THEN
+          byteVal = currentCanvas(currentSprite.boundingBoxX2, y)
           SHIFT LEFT byteVal, 4
           PUT #fileNum, , byteVal
         END IF
