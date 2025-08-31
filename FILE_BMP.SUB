@@ -200,39 +200,33 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM rowPadding AS DWORD  
     rowPadding = (4 - (rowBytes AND 3)) AND 3
 
-    ' Restore original bounding box position (stored in reserved fields)
-    DIM originalX AS WORD
-    DIM originalY AS WORD  
-    originalX = bmpH.bfReserved1
-    originalY = bmpH.bfReserved2
-    
-    ' Update sprite bounding box to match BMP dimensions at original position
-    currentSprite.boundingBoxX1 = originalX
-    currentSprite.boundingBoxY1 = originalY  
-    currentSprite.boundingBoxX2 = originalX + spriteWidth - 1
-    currentSprite.boundingBoxY2 = originalY + spriteHeight - 1
+    ' Update sprite bounding box to match BMP dimensions at 0,0 position
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0  
+    currentSprite.boundingBoxX2 = spriteWidth - 1
+    currentSprite.boundingBoxY2 = spriteHeight - 1
 
     ' Seek to pixel data
     SEEK fileNum, bmpH.bfOffBits
 
     ' Read pixel data (bottom-up, matching write order)
+    DIM byteVal AS BYTE
     DIM x AS INTEGER
     DIM y AS INTEGER
-    DIM byteVal AS BYTE
     
-    FOR y = currentSprite.boundingBoxY2 TO currentSprite.boundingBoxY1 STEP -1
+    FOR y = spriteHeight - 1 TO 0 STEP -1
         FOR x = 0 TO spriteWidth - 1 STEP 2
             GET #fileNum, , byteVal
-            currentCanvas(currentSprite.boundingBoxX1 + x + 1, y) = byteVal AND &H0F
+            currentCanvas(x + 1, y) = byteVal AND &H0F
             SHIFT RIGHT byteVal, 4
-            currentCanvas(currentSprite.boundingBoxX1 + x, y) = byteVal
+            currentCanvas(x, y) = byteVal
         NEXT
         
         ' Handle odd width
         IF x < spriteWidth THEN
             GET #fileNum, , byteVal
             SHIFT RIGHT byteVal, 4
-            currentCanvas(currentSprite.boundingBoxX1 + spriteWidth, y) = byteVal
+            currentCanvas(spriteWidth, y) = byteVal
         END IF
         
         ' Skip row padding
@@ -242,5 +236,4 @@ SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
     NEXT
 
     CLOSE #fileNum
-    UpdateSpriteBoundingBoxShared
 END SUB

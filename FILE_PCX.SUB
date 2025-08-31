@@ -159,9 +159,11 @@ SUB FilePcx_Read (fullPath AS STRING, errorMessage AS STRING)
     spriteWidth = header.Xmax - header.Xmin + 1
     spriteHeight = header.Ymax - header.Ymin + 1
 
-    ' Restore to original bounding box position
-    startX = header.HScrSize  ' Original X offset
-    startY = header.VScrSize  ' Original Y offset
+    ' Update sprite bounding box to match PCX dimensions at 0,0 position
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = spriteWidth - 1
+    currentSprite.boundingBoxY2 = spriteHeight - 1
 
     ' --- Read Image Data with RLE Decompression ---
     FOR y = 0 TO spriteHeight - 1
@@ -187,5 +189,4 @@ SUB FilePcx_Read (fullPath AS STRING, errorMessage AS STRING)
     NEXT y
 
     CLOSE #fileNum
-    UpdateSpriteBoundingBoxShared
 END SUB
