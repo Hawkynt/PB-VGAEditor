@@ -6,13 +6,13 @@ TYPE TGAHeader
     IDLength        AS BYTE         ' Length of image ID field
     ColorMapType    AS BYTE         ' Color map type (0=none, 1=present)
     ImageType       AS BYTE         ' Image type (1=palette, 2=RGB, etc.)
-    ColorMapStart   AS INTEGER     ' First color map entry index
-    ColorMapLength  AS INTEGER     ' Number of color map entries
+    ColorMapStart   AS WORD         ' First color map entry index
+    ColorMapLength  AS WORD         ' Number of color map entries
     ColorMapBits    AS BYTE         ' Color map entry size
-    XOrigin         AS INTEGER     ' X origin of image
-    YOrigin         AS INTEGER     ' Y origin of image
-    ImageWidth      AS INTEGER     ' Image width  
-    ImageHeight     AS INTEGER     ' Image height
+    XOrigin         AS WORD         ' X origin of image
+    YOrigin         AS WORD         ' Y origin of image
+    ImageWidth      AS WORD         ' Image width  
+    ImageHeight     AS WORD         ' Image height
     BitsPerPixel    AS BYTE         ' Bits per pixel
     ImageDescriptor AS BYTE         ' Image descriptor byte
 END TYPE
@@ -26,21 +26,20 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FileTga_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileTga_Write (fullPath AS STRING, errorMessage AS STRING)
     DIM tgaHeader AS TGAHeader
     DIM fileNum AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
-    DIM spriteWidth AS INTEGER, spriteHeight AS INTEGER
-    DIM vgaPalette(0 TO 15) AS STRING * 3
-    DIM byteVal AS STRING * 1
+    DIM spriteWidth AS WORD, spriteHeight AS WORD
+    DIM byteValue AS BYTE
     DIM i AS INTEGER
     errorMessage = ""
 
     ' Check if there is anything to save
-    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+    IF currentSprite.boundingBoxX2 = -1 THEN EXIT SUB
 
-    spriteWidth = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
-    spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+    spriteWidth = currentSprite.boundingBoxX2 - currentSprite.boundingBoxX1 + 1
+    spriteHeight = currentSprite.boundingBoxY2 - currentSprite.boundingBoxY1 + 1
 
     ' --- Fill TGA Header for 8-bit palette image ---
     tgaHeader.IDLength = 0              ' No image ID
@@ -49,8 +48,8 @@ SUB FileTga_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     tgaHeader.ColorMapStart = 0         ' Start at color 0
     tgaHeader.ColorMapLength = 16       ' 16 colors
     tgaHeader.ColorMapBits = 24         ' 24 bits per palette entry (RGB)
-    tgaHeader.XOrigin = 0               ' X origin
-    tgaHeader.YOrigin = 0               ' Y origin
+    tgaHeader.XOrigin = 0               ' No offset
+    tgaHeader.YOrigin = 0               ' No offset
     tgaHeader.ImageWidth = spriteWidth  ' Image width
     tgaHeader.ImageHeight = spriteHeight ' Image height
     tgaHeader.BitsPerPixel = 8          ' 8 bits per pixel
@@ -59,37 +58,44 @@ SUB FileTga_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
 
-    ' --- Write TGA Header ---
-    PUT #fileNum, , tgaHeader.IDLength
-    PUT #fileNum, , tgaHeader.ColorMapType
-    PUT #fileNum, , tgaHeader.ImageType
-    PUT #fileNum, , tgaHeader.ColorMapStart
-    PUT #fileNum, , tgaHeader.ColorMapLength
-    PUT #fileNum, , tgaHeader.ColorMapBits
-    PUT #fileNum, , tgaHeader.XOrigin
-    PUT #fileNum, , tgaHeader.YOrigin
-    PUT #fileNum, , tgaHeader.ImageWidth
-    PUT #fileNum, , tgaHeader.ImageHeight
-    PUT #fileNum, , tgaHeader.BitsPerPixel
-    PUT #fileNum, , tgaHeader.ImageDescriptor
+      ' --- Write TGA Header as structure ---
+      PUT #fileNum, , tgaHeader
 
-    ' --- Write Color Palette (BGR format) ---
-    vgaPalette(0) = CHR$(0, 0, 0): vgaPalette(1) = CHR$(170, 0, 0): vgaPalette(2) = CHR$(0, 170, 0): vgaPalette(3) = CHR$(170, 170, 0)
-    vgaPalette(4) = CHR$(0, 0, 170): vgaPalette(5) = CHR$(170, 0, 170): vgaPalette(6) = CHR$(0, 85, 170): vgaPalette(7) = CHR$(170, 170, 170)
-    vgaPalette(8) = CHR$(85, 85, 85): vgaPalette(9) = CHR$(255, 85, 85): vgaPalette(10) = CHR$(85, 255, 85): vgaPalette(11) = CHR$(255, 255, 85)
-    vgaPalette(12) = CHR$(85, 85, 255): vgaPalette(13) = CHR$(255, 85, 255): vgaPalette(14) = CHR$(85, 255, 255): vgaPalette(15) = CHR$(255, 255, 255)
+      DIM byteVal AS BYTE
+      DIM vgaPalette(0 TO 15) AS DWORD
+      vgaPalette(0) = &H000000
+      vgaPalette(1) = &H0000AA
+      vgaPalette(2) = &H00AA00
+      vgaPalette(3) = &H00AAAA
+      vgaPalette(4) = &HAA0000
+      vgaPalette(5) = &HAA00AA
+      vgaPalette(6) = &HAA5500
+      vgaPalette(7) = &HAAAAAA
+      vgaPalette(8) = &H555555
+      vgaPalette(9) = &H5555FF
+      vgaPalette(10) = &H55FF55
+      vgaPalette(11) = &H55FFFF
+      vgaPalette(12) = &HFF5555
+      vgaPalette(13) = &HFF55FF
+      vgaPalette(14) = &HFFFF55
+      vgaPalette(15) = &HFFFFFF
+      FOR byteVal = 0 TO 15
+          DIM r AS BYTE, g AS BYTE, b AS BYTE
+          r = (vgaPalette(byteVal) \ 65536) AND &HFF
+          g = (vgaPalette(byteVal) \ 256) AND &HFF
+          b = vgaPalette(byteVal) AND &HFF
+          PUT #fileNum, , b
+          PUT #fileNum, , g
+          PUT #fileNum, , r
+      NEXT
 
-    FOR i = 0 TO 15
-        PUT #fileNum, , vgaPalette(i)
-    NEXT i
-
-    ' --- Write Image Data (bottom-up scanlines for TGA) ---
-    FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
-        FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2
-            byteVal = CHR$(canvas(x, y))
-            PUT #fileNum, , byteVal
-        NEXT x
-    NEXT y
+      ' --- Write Image Data (bottom-up scanlines for TGA) ---
+      FOR y = currentSprite.boundingBoxY2 TO currentSprite.boundingBoxY1 STEP -1
+          FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2
+              byteValue = currentCanvas(x, y)
+              PUT #fileNum, , byteValue
+          NEXT x
+      NEXT y
 
     CLOSE #fileNum
 END SUB
@@ -102,21 +108,14 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FileTga_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileTga_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM tgaHeader AS TGAHeader
     DIM fileNum AS INTEGER
-    DIM imageWidth AS INTEGER, imageHeight AS INTEGER
-    DIM colorMapType AS INTEGER
-    DIM imageType AS INTEGER
-    DIM bitsPerPixel AS INTEGER
-    DIM imageDescriptor AS INTEGER
+    DIM imageWidth AS WORD, imageHeight AS WORD
     DIM topDown AS INTEGER
-    DIM x AS LONG, y AS LONG
-    DIM startX AS LONG, startY AS LONG
-    DIM byteVal AS STRING * 1
-    DIM pixelVal AS INTEGER
-    DIM srcY AS LONG, dy AS LONG
-    DIM dx AS LONG
+    DIM x AS INTEGER, y AS INTEGER
+    DIM byteValue AS BYTE
+    DIM srcY AS INTEGER, dy AS INTEGER
     DIM i AS INTEGER
     errorMessage = ""
 
@@ -130,35 +129,19 @@ SUB FileTga_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
     END IF
     ON ERROR GOTO 0
 
-    ' --- Read TGA Header ---
-    GET #fileNum, , tgaHeader.IDLength
-    GET #fileNum, , tgaHeader.ColorMapType
-    GET #fileNum, , tgaHeader.ImageType
-    GET #fileNum, , tgaHeader.ColorMapStart
-    GET #fileNum, , tgaHeader.ColorMapLength
-    GET #fileNum, , tgaHeader.ColorMapBits
-    GET #fileNum, , tgaHeader.XOrigin
-    GET #fileNum, , tgaHeader.YOrigin
-    GET #fileNum, , tgaHeader.ImageWidth
-    GET #fileNum, , tgaHeader.ImageHeight
-    GET #fileNum, , tgaHeader.BitsPerPixel
-    GET #fileNum, , tgaHeader.ImageDescriptor
+    ' --- Read TGA Header as structure ---
+    GET #fileNum, , tgaHeader
 
     ' --- Validate Header ---
-    colorMapType = tgaHeader.ColorMapType
-    imageType = tgaHeader.ImageType
     imageWidth = tgaHeader.ImageWidth
     imageHeight = tgaHeader.ImageHeight
-    bitsPerPixel = tgaHeader.BitsPerPixel
-    imageDescriptor = tgaHeader.ImageDescriptor
 
-    ' what 1 and 2? refactor to named constants
-    IF imageType <> 1 AND imageType <> 2 THEN
+    IF tgaHeader.ImageType <> 1 AND tgaHeader.ImageType <> 2 THEN
         errorMessage = "Unsupported TGA image type."
         CLOSE #fileNum : EXIT SUB
     END IF
 
-    IF bitsPerPixel <> 8 AND bitsPerPixel <> 24 AND bitsPerPixel <> 32 THEN
+    IF tgaHeader.BitsPerPixel <> 8 AND tgaHeader.BitsPerPixel <> 24 AND tgaHeader.BitsPerPixel <> 32 THEN
         errorMessage = "Unsupported TGA bit depth."
         CLOSE #fileNum : EXIT SUB
     END IF
@@ -169,83 +152,81 @@ SUB FileTga_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
     END IF
 
     ' Check if image origin is at top-left (bit 5 of image descriptor)
-    topDown = (imageDescriptor AND &H20) <> 0
+    topDown = (tgaHeader.ImageDescriptor AND &H20) <> 0
 
     ' --- Skip Image ID if present ---
     IF tgaHeader.IDLength > 0 THEN
         FOR i = 1 TO tgaHeader.IDLength
-            GET #fileNum, , byteVal
+            GET #fileNum, , byteValue  ' dummy read to skip ID
         NEXT i
     END IF
 
     ' --- Skip Color Map if present (we'll use our VGA palette) ---
-    IF colorMapType = 1 THEN
+    IF tgaHeader.ColorMapType = 1 THEN
         DIM colorMapSize AS INTEGER
         colorMapSize = tgaHeader.ColorMapLength * ((tgaHeader.ColorMapBits + 7) \ 8)
         FOR i = 1 TO colorMapSize
-            GET #fileNum, , byteVal
+            GET #fileNum, , byteValue  ' dummy read to skip palette
         NEXT i
     END IF
 
-    ' --- Read Image Data ---
-    startX = 0 : startY = 0
+    ' Load sprite at 0,0 position
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = imageWidth - 1
+    currentSprite.boundingBoxY2 = imageHeight - 1
 
+    ' Clear entire canvas first (everything transparent)
+    FOR y = 0 TO currentSprite.spriteHeight - 1
+        FOR x = 0 TO currentSprite.spriteWidth - 1
+            currentCanvas(x, y) = 0
+        NEXT x
+    NEXT y
+
+    ' --- Read Image Data ---
     FOR y = 0 TO imageHeight - 1
         IF topDown THEN
-            srcY = y
+            dy = y
         ELSE
-            srcY = imageHeight - 1 - y  ' Bottom-up
+            dy = imageHeight - 1 - y  ' Bottom-up
         END IF
-        dy = startY + srcY
 
         FOR x = 0 TO imageWidth - 1
-            dx = startX + x
-
-            SELECT CASE bitsPerPixel
+            SELECT CASE tgaHeader.BitsPerPixel
                 CASE 8  ' Palette mode
-                    ON ERROR RESUME NEXT
-                    GET #fileNum, , byteVal
-                    IF ERR <> 0 THEN
-                        errorMessage = "Unexpected EOF in TGA data."
-                        ERRCLEAR : ON ERROR GOTO 0
-                        CLOSE #fileNum : EXIT SUB
-                    END IF
-                    ON ERROR GOTO 0
-
-                    pixelVal = ASC(byteVal) AND 15  ' Map to 4-bit VGA range
+                    GET #fileNum, , byteValue
+                    ' Direct mapping since we write VGA values 0-15
 
                 CASE 24  ' RGB mode - convert to nearest VGA color
-                    DIM r AS INTEGER, g AS INTEGER, b AS INTEGER
-                    GET #fileNum, , byteVal : b = ASC(byteVal)  ' Blue
-                    GET #fileNum, , byteVal : g = ASC(byteVal)  ' Green
-                    GET #fileNum, , byteVal : r = ASC(byteVal)  ' Red
+                    DIM r AS BYTE, g AS BYTE, b AS BYTE
+                    GET #fileNum, , b  ' Blue
+                    GET #fileNum, , g  ' Green
+                    GET #fileNum, , r  ' Red
 
                     ' Simple RGB to VGA color mapping
-                    pixelVal = 0
-                    IF r > 127 THEN pixelVal = pixelVal + 4
-                    IF g > 127 THEN pixelVal = pixelVal + 2
-                    IF b > 127 THEN pixelVal = pixelVal + 1
-                    IF r > 191 OR g > 191 OR b > 191 THEN pixelVal = pixelVal + 8
+                    byteValue = 0
+                    IF r > 127 THEN byteValue = byteValue + 4
+                    IF g > 127 THEN byteValue = byteValue + 2
+                    IF b > 127 THEN byteValue = byteValue + 1
+                    IF r > 191 OR g > 191 OR b > 191 THEN byteValue = byteValue + 8
 
                 CASE 32  ' RGBA mode - convert to nearest VGA color, ignore alpha
-                    DIM a AS INTEGER
-                    GET #fileNum, , byteVal : b = ASC(byteVal)  ' Blue
-                    GET #fileNum, , byteVal : g = ASC(byteVal)  ' Green
-                    GET #fileNum, , byteVal : r = ASC(byteVal)  ' Red
-                    GET #fileNum, , byteVal : a = ASC(byteVal)  ' Alpha (ignored)
+                    DIM a AS BYTE
+                    GET #fileNum, , b  ' Blue
+                    GET #fileNum, , g  ' Green
+                    GET #fileNum, , r  ' Red
+                    GET #fileNum, , a  ' Alpha (ignored)
 
                     ' Simple RGB to VGA color mapping (same as 24-bit)
-                    pixelVal = 0
-                    IF r > 127 THEN pixelVal = pixelVal + 4
-                    IF g > 127 THEN pixelVal = pixelVal + 2
-                    IF b > 127 THEN pixelVal = pixelVal + 1
-                    IF r > 191 OR g > 191 OR b > 191 THEN pixelVal = pixelVal + 8
+                    byteValue = 0
+                    IF r > 127 THEN byteValue = byteValue + 4
+                    IF g > 127 THEN byteValue = byteValue + 2
+                    IF b > 127 THEN byteValue = byteValue + 1
+                    IF r > 191 OR g > 191 OR b > 191 THEN byteValue = byteValue + 8
             END SELECT
 
-            ' Store pixel if within canvas bounds
-            IF dx >= 0 AND dx < spr.spriteWidth AND dy >= 0 AND dy < spr.spriteHeight THEN
-                canvas(dx, dy) = pixelVal
-            END IF
+            ' Store pixel at 0,0 based coordinates
+            currentCanvas(x, dy) = byteValue
         NEXT x
     NEXT y
 

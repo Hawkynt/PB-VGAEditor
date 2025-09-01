@@ -1,0 +1,11 @@
+*.exe
+*.obj
+*.bak
+.crush
+CRUSH.MD
+.claude
+CLAUDE.MD
+.gemini
+GEMINI.MD
+MAKE.LOG
+UNITTEST.LOG

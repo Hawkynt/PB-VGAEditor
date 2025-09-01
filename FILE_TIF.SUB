@@ -1,0 +1,427 @@
+' TIF File Format Module
+' Common Interface: FileTIF_Read, FileTIF_Write
+
+' TIFF Constants
+%TIFF_LITTLEENDIAN = &H4949      ' "II"
+%TIFF_BIGENDIAN    = &H4D4D      ' "MM"
+%TIFF_MAGIC        = 42
+
+' TIFF Tags
+%TAG_IMAGEWIDTH    = 256
+%TAG_IMAGELENGTH   = 257
+%TAG_BITSPERSAMPLE = 258
+%TAG_COMPRESSION   = 259
+%TAG_PHOTOMETRIC   = 262
+%TAG_STRIPOFFSETS  = 273
+%TAG_SAMPLESPERPIXEL = 277
+%TAG_ROWSPERSTRIP  = 278
+%TAG_STRIPBYTECOUNTS = 279
+%TAG_COLORMAP      = 320
+
+' Field Types
+%FIELD_BYTE   = 1
+%FIELD_ASCII  = 2
+%FIELD_SHORT  = 3
+%FIELD_LONG   = 4
+%FIELD_RATIONAL = 5
+
+' Compression Types
+%COMPRESSION_NONE = 1
+
+' Photometric Interpretations
+%PHOTOMETRIC_PALETTE = 3
+
+%BPP_INDEXED4 = 4
+%SAMPLES_PER_PIXEL_1 = 1
+%COLORMAP_SHORTS = 48
+%SCALE_8_TO_16 = &H0101  
+
+TYPE TIFFHeader
+    ByteOrder   AS WORD     ' "II" (4949h) or "MM" (4D4Dh)
+    Magic       AS WORD     ' 42
+    IFDOffset   AS DWORD    ' Offset to first IFD
+END TYPE
+
+TYPE TIFFDirectoryEntry
+    Tag         AS WORD     ' TIFF tag
+    FieldType   AS WORD     ' Data type
+    Count       AS DWORD    ' Number of values
+    ValueOffset AS DWORD    ' Value or offset to value
+END TYPE
+
+FUNCTION FileTIF_SwapWord(BYVAL value AS WORD) AS WORD
+  !MOV AX, value
+  !XCHG Al, AH
+  !MOV FileTIF_SwapWord,AX
+END FUNCTION
+
+FUNCTION FileTIF_SwapDWord(BYVAL value AS DWORD) AS DWORD
+  DIM E0 AS WORD, E1 AS WORD
+  E0 = value \ &H10000
+  E1 = value AND &HFFFF
+  E0 = FileTIF_SwapWord(E0)
+  E1 = FileTIF_SwapWord(E1)
+  FileTIF_SwapDWord = E1 * &H10000 + E0
+END FUNCTION
+
+SUB FileTIF_Write (fullPath AS STRING, errorMessage AS STRING)
+   errorMessage = ""
+
+    IF currentSprite.boundingBoxX2 = -1 THEN EXIT SUB
+
+    DIM spriteWidth  AS DWORD : spriteWidth  = currentSprite.boundingBoxX2 - currentSprite.boundingBoxX1 + 1
+    DIM spriteHeight AS DWORD : spriteHeight = currentSprite.boundingBoxY2 - currentSprite.boundingBoxY1 + 1
+
+    DIM fileNum AS INTEGER : fileNum = FREEFILE
+    ON ERROR RESUME NEXT
+        OPEN fullPath FOR BINARY AS #fileNum
+        IF ERR <> 0 THEN
+            errorMessage = "Cannot create file: " & fullPath
+            ERRCLEAR : ON ERROR GOTO 0
+            EXIT SUB
+        END IF
+    ON ERROR GOTO 0
+
+    ' --- Layout ---
+    ' [Header(8)][IFD(2 + 10*12 + 4)][ColorMap(48*2 bytes)][ImageData(ceil(w/2)*h bytes)]
+    DIM ifdEntryCount AS WORD : ifdEntryCount = 10
+    DIM ifdSize   AS DWORD : ifdSize   = 2 + ifdEntryCount * 12 + 4
+    DIM headerSz  AS DWORD : headerSz  = 8
+    DIM rowBytes  AS DWORD : rowBytes  = (spriteWidth + 1) \ 2
+    DIM imageBytes AS DWORD : imageBytes = rowBytes * spriteHeight
+    DIM colorMapShorts AS DWORD : colorMapShorts = %COLORMAP_SHORTS
+    DIM colorMapBytes  AS DWORD : colorMapBytes  = colorMapShorts * 2
+
+    DIM ifdOffset      AS DWORD : ifdOffset      = headerSz
+    DIM colorMapOffset AS DWORD : colorMapOffset = ifdOffset + ifdSize
+    DIM stripOffset    AS DWORD : stripOffset    = colorMapOffset + colorMapBytes
+    DIM stripByteCount AS DWORD : stripByteCount = imageBytes
+
+    ' --- Header ---
+    DIM header AS TIFFHeader
+    header.ByteOrder = %TIFF_LITTLEENDIAN
+    header.Magic     = %TIFF_MAGIC
+    header.IFDOffset = ifdOffset
+    PUT #fileNum, , header
+
+    ' --- IFD ---
+    PUT #fileNum, , ifdEntryCount
+
+    DIM entry AS TIFFDirectoryEntry
+
+    ' ImageWidth (LONG,1)
+    entry.Tag        = %TAG_IMAGEWIDTH
+    entry.FieldType  = %FIELD_LONG
+    entry.Count      = 1
+    entry.ValueOffset= spriteWidth
+    PUT #fileNum, , entry
+
+    ' ImageLength (LONG,1)
+    entry.Tag        = %TAG_IMAGELENGTH
+    entry.FieldType  = %FIELD_LONG
+    entry.Count      = 1
+    entry.ValueOffset= spriteHeight
+    PUT #fileNum, , entry
+
+    ' BitsPerSample (SHORT,1) = 4
+    entry.Tag        = %TAG_BITSPERSAMPLE
+    entry.FieldType  = %FIELD_SHORT
+    entry.Count      = 1
+    entry.ValueOffset= 4
+    PUT #fileNum, , entry
+
+    ' Compression (SHORT,1) = none
+    entry.Tag        = %TAG_COMPRESSION
+    entry.FieldType  = %FIELD_SHORT
+    entry.Count      = 1
+    entry.ValueOffset= %COMPRESSION_NONE
+    PUT #fileNum, , entry
+
+    ' PhotometricInterpretation (SHORT,1) = palette
+    entry.Tag        = %TAG_PHOTOMETRIC
+    entry.FieldType  = %FIELD_SHORT
+    entry.Count      = 1
+    entry.ValueOffset= %PHOTOMETRIC_PALETTE
+    PUT #fileNum, , entry
+
+    ' StripOffsets (LONG,1)
+    entry.Tag        = %TAG_STRIPOFFSETS
+    entry.FieldType  = %FIELD_LONG
+    entry.Count      = 1
+    entry.ValueOffset= stripOffset
+    PUT #fileNum, , entry
+
+    ' SamplesPerPixel (SHORT,1) = 1
+    entry.Tag        = %TAG_SAMPLESPERPIXEL
+    entry.FieldType  = %FIELD_SHORT
+    entry.Count      = 1
+    entry.ValueOffset= 1
+    PUT #fileNum, , entry
+
+    ' RowsPerStrip (LONG,1) = full image
+    entry.Tag        = %TAG_ROWSPERSTRIP
+    entry.FieldType  = %FIELD_LONG
+    entry.Count      = 1
+    entry.ValueOffset= spriteHeight
+    PUT #fileNum, , entry
+
+    ' StripByteCounts (LONG,1)
+    entry.Tag        = %TAG_STRIPBYTECOUNTS
+    entry.FieldType  = %FIELD_LONG
+    entry.Count      = 1
+    entry.ValueOffset= stripByteCount
+    PUT #fileNum, , entry
+
+    ' ColorMap (SHORT,48) -> colorMapOffset
+    entry.Tag        = %TAG_COLORMAP
+    entry.FieldType  = %FIELD_SHORT
+    entry.Count      = colorMapShorts
+    entry.ValueOffset= colorMapOffset
+    PUT #fileNum, , entry
+
+    ' Next IFD = 0
+    DIM nextIFD AS DWORD : nextIFD = 0
+    PUT #fileNum, , nextIFD
+
+    ' --- ColorMap BEFORE image data ---
+    ' VGA palette (R[16], then G[16], then B[16]), WORD values scaled 8-bit * 257
+    DIM vgaPalette(0 TO 15) AS DWORD
+    vgaPalette(0) = &H000000
+    vgaPalette(1) = &H0000AA
+    vgaPalette(2) = &H00AA00
+    vgaPalette(3) = &H00AAAA
+    vgaPalette(4) = &HAA0000
+    vgaPalette(5) = &HAA00AA
+    vgaPalette(6) = &HAA5500
+    vgaPalette(7) = &HAAAAAA
+    vgaPalette(8) = &H555555
+    vgaPalette(9) = &H5555FF
+    vgaPalette(10)= &H55FF55
+    vgaPalette(11)= &H55FFFF
+    vgaPalette(12)= &HFF5555
+    vgaPalette(13)= &HFF55FF
+    vgaPalette(14)= &HFFFF55
+    vgaPalette(15)= &HFFFFFF
+
+    DIM i AS LONG
+    DIM wordVal AS WORD
+    ' Reds
+    FOR i = 0 TO 15
+        wordVal = ((vgaPalette(i) \ 65536) AND &HFF) * %SCALE_8_TO_16
+        PUT #fileNum, , wordVal
+    NEXT
+    ' Greens
+    FOR i = 0 TO 15
+        wordVal = ((vgaPalette(i) \ 256) AND &HFF) * %SCALE_8_TO_16
+        PUT #fileNum, , wordVal
+    NEXT
+    ' Blues
+    FOR i = 0 TO 15
+        wordVal = (vgaPalette(i) AND &HFF) * %SCALE_8_TO_16
+        PUT #fileNum, , wordVal
+    NEXT
+
+    ' --- Image data (one strip, uncompressed), 2 pixels per byte, high nibble first ---
+    DIM x AS DWORD, y AS DWORD
+    DIM byteVal AS BYTE
+    FOR y = currentSprite.boundingBoxY1 TO currentSprite.boundingBoxY2
+        FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2 STEP 2
+            byteVal = currentCanvas(x, y)
+            SHIFT LEFT byteVal, 4
+            byteVal = byteVal OR currentCanvas(x + 1, y)
+            PUT #fileNum, , byteVal
+        NEXT
+        
+        IF x < currentSprite.boundingBoxX2 THEN
+            byteVal = currentCanvas(currentSprite.boundingBoxX2, y)
+            SHIFT LEFT byteVal, 4
+            PUT #fileNum, , byteVal
+        END IF
+    NEXT
+
+    CLOSE #fileNum
+END SUB
+
+SUB FileTIF_Read (fullPath AS STRING, errorMessage AS STRING)
+    errorMessage = ""
+
+    DIM fileNum AS INTEGER : fileNum = FREEFILE
+    ON ERROR RESUME NEXT
+        OPEN fullPath FOR BINARY AS #fileNum
+        IF ERR <> 0 THEN
+            errorMessage = "Cannot open file: " & fullPath
+            ERRCLEAR : ON ERROR GOTO 0
+            EXIT SUB
+        END IF
+    ON ERROR GOTO 0
+
+    ' ---- Read and validate header ----
+    DIM hdr AS TIFFHeader
+    GET #fileNum, , hdr
+    DIM debugIFDOffset AS DWORD : debugIFDOffset = hdr.IFDOffset
+    DIM debugByteOrder AS WORD : debugByteOrder = hdr.ByteOrder
+    DIM debugMagic AS WORD : debugMagic = hdr.Magic
+    IF hdr.ByteOrder <> %TIFF_LITTLEENDIAN THEN
+        errorMessage = "Unsupported TIFF (expecting little-endian)."
+        GOTO FailInvalid
+    END IF
+    IF hdr.Magic <> %TIFF_MAGIC THEN
+        errorMessage = "Unsupported TIFF (expecting baseline)."
+        GOTO FailInvalid
+    END IF
+
+    ' ---- Seek to first IFD and read entry count ----
+    SEEK #fileNum, hdr.IFDOffset
+    DIM entryCount AS WORD
+    GET #fileNum, , entryCount
+
+    ' ---- Collect tags we care about ----
+    DIM imgW AS DWORD, imgH AS DWORD
+    DIM bitsPerSample AS WORD, compression AS WORD, photo AS WORD, spp AS WORD
+    DIM rowsPerStrip AS DWORD, stripOffset AS DWORD, stripBytes AS DWORD
+    DIM colorMapOff AS DWORD, colorMapCnt AS DWORD
+    bitsPerSample = 0 : compression = 0 : photo = 0 : spp = 0
+    rowsPerStrip = 0 : stripOffset = 0 : stripBytes = 0
+    colorMapOff  = 0 : colorMapCnt  = 0
+
+    DIM i AS WORD
+    DIM e AS TIFFDirectoryEntry
+    FOR i = 1 TO entryCount
+        GET #fileNum, , e
+        SELECT CASE e.Tag
+            CASE %TAG_IMAGEWIDTH
+                IF e.FieldType = %FIELD_LONG  AND e.Count = 1 THEN imgW = e.ValueOffset
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN imgW = e.ValueOffset AND &HFFFF
+            CASE %TAG_IMAGELENGTH
+                IF e.FieldType = %FIELD_LONG  AND e.Count = 1 THEN imgH = e.ValueOffset
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN imgH = e.ValueOffset AND &HFFFF
+            CASE %TAG_BITSPERSAMPLE
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN bitsPerSample = e.ValueOffset AND &HFFFF
+            CASE %TAG_COMPRESSION
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN compression = e.ValueOffset AND &HFFFF
+            CASE %TAG_PHOTOMETRIC
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN photo = e.ValueOffset AND &HFFFF
+            CASE %TAG_SAMPLESPERPIXEL
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN spp = e.ValueOffset AND &HFFFF
+            CASE %TAG_ROWSPERSTRIP
+                IF e.FieldType = %FIELD_LONG  AND e.Count = 1 THEN rowsPerStrip = e.ValueOffset
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN rowsPerStrip = e.ValueOffset AND &HFFFF
+            CASE %TAG_STRIPOFFSETS
+                IF e.FieldType = %FIELD_LONG  AND e.Count = 1 THEN stripOffset = e.ValueOffset
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN stripOffset = e.ValueOffset AND &HFFFF
+            CASE %TAG_STRIPBYTECOUNTS
+                IF e.FieldType = %FIELD_LONG  AND e.Count = 1 THEN stripBytes = e.ValueOffset
+                IF e.FieldType = %FIELD_SHORT AND e.Count = 1 THEN stripBytes = e.ValueOffset AND &HFFFF
+            CASE %TAG_COLORMAP
+                IF e.FieldType = %FIELD_SHORT AND e.Count = %COLORMAP_SHORTS THEN
+                    colorMapOff = e.ValueOffset
+                    colorMapCnt = e.Count
+                END IF
+        END SELECT
+    NEXT
+
+    ' Skip NextIFD DWORD
+    DIM nextIfd AS DWORD
+    GET #fileNum, , nextIfd
+
+    ' ---- Validate essentials per our minimal baseline ----
+    IF imgW = 0 THEN 
+        errorMessage = "Unsupported TIFF (expecting width > 0)."
+        GOTO FailInvalid
+    END IF
+    IF imgH = 0 THEN 
+        errorMessage = "Unsupported TIFF (expecting height > 0)."
+        GOTO FailInvalid
+    END IF
+    IF bitsPerSample <> %BPP_INDEXED4 THEN 
+        errorMessage = "Unsupported TIFF (expecting 4 bits per pixel)."
+        GOTO FailInvalid
+    END IF
+    IF spp <> %SAMPLES_PER_PIXEL_1 THEN 
+        errorMessage = "Unsupported TIFF (expecting 1 sample per pixel)."
+        GOTO FailInvalid
+    END IF
+    IF compression <> %COMPRESSION_NONE THEN 
+        errorMessage = "Unsupported TIFF (expecting no compression)."
+        GOTO FailInvalid
+    END IF
+    IF photo <> %PHOTOMETRIC_PALETTE THEN 
+        errorMessage = "Unsupported TIFF (expecting palette color space)."
+        GOTO FailInvalid
+    END IF
+    IF colorMapOff = 0 OR colorMapCnt <> %COLORMAP_SHORTS THEN 
+        errorMessage = "Unsupported TIFF (expecting valid color map)."
+        GOTO FailInvalid
+    END IF
+    IF stripOffset = 0 THEN 
+        errorMessage = "Unsupported TIFF (expecting valid strip offset)."
+        GOTO FailInvalid
+    END IF
+
+    ' ---- Read ColorMap SHORT[48] (R16[16], G16[16], B16[16]) ----
+    DIM red16(0 TO 15)   AS WORD
+    DIM green16(0 TO 15) AS WORD
+    DIM blue16(0 TO 15)  AS WORD
+
+    SEEK #fileNum, colorMapOff
+    FOR i = 0 TO 15 : GET #fileNum, , red16(i)   : NEXT
+    FOR i = 0 TO 15 : GET #fileNum, , green16(i) : NEXT
+    FOR i = 0 TO 15 : GET #fileNum, , blue16(i)  : NEXT
+
+    ' Build mapping from file palette -> VGA palette (nearest in 8-bit)
+    DIM mapToVga(0 TO 15) AS BYTE
+    DIM vgaR(0 TO 15) AS BYTE, vgaG(0 TO 15) AS BYTE, vgaB(0 TO 15) AS BYTE
+    DATA &H00,&H00,&H00,&H00,&HAA,&HAA,&HAA,&HAA,&H55,&H55,&H55,&H55,&HFF,&HFF,&HFF,&HFF
+    FOR i = 0 TO 15 : READ vgaR(i) : NEXT
+    DATA &H00,&H00,&HAA,&HAA,&H00,&H00,&H55,&HAA,&H55,&H55,&HFF,&HFF,&H55,&H55,&HFF,&HFF
+    FOR i = 0 TO 15 : READ vgaG(i) : NEXT
+    DATA &H00,&HAA,&H00,&HAA,&H00,&HAA,&H00,&HAA,&H55,&HFF,&H55,&HFF,&H55,&HFF,&H55,&HFF
+    FOR i = 0 TO 15 : READ vgaB(i) : NEXT
+
+    DIM p AS INTEGER, v AS INTEGER
+    FOR p = 0 TO 15
+        DIM r8 AS INTEGER, g8 AS INTEGER, b8 AS INTEGER
+        r8 = red16(p)   \ %SCALE_8_TO_16
+        g8 = green16(p) \ %SCALE_8_TO_16
+        b8 = blue16(p)  \ %SCALE_8_TO_16
+        DIM bestIdx AS INTEGER : bestIdx = 0
+        DIM bestDist AS LONG   : bestDist = &H7FFFFFFF
+        FOR v = 0 TO 15
+            DIM dr AS LONG, dg AS LONG, db AS LONG, d AS LONG
+            dr = r8 - vgaR(v) : dg = g8 - vgaG(v) : db = b8 - vgaB(v)
+            d = dr*dr + dg*dg + db*db
+            IF d < bestDist THEN bestDist = d : bestIdx = v
+        NEXT
+        mapToVga(p) = bestIdx
+    NEXT
+
+    ' ---- Read image data (one strip) ----
+    DIM rowBytes AS DWORD : rowBytes = (imgW + 1) \ 2
+    SEEK #fileNum, stripOffset
+
+    DIM y AS DWORD, x AS DWORD, packed AS BYTE
+    FOR y = 0 TO imgH - 1
+        x = 0
+        DO WHILE x + 1 <= imgW - 1
+            GET #fileNum, , packed
+            currentCanvas(x,     y) = mapToVga((packed \ 16) AND &HF)
+            currentCanvas(x + 1, y) = mapToVga(packed AND &HF)
+            x = x + 2
+        LOOP
+        IF x < imgW THEN
+            GET #fileNum, , packed
+            currentCanvas(x, y) = mapToVga((packed \ 16) AND &HF)
+        END IF
+    NEXT
+
+    CLOSE #fileNum
+
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = imgW - 1
+    currentSprite.boundingBoxY2 = imgH - 1
+    EXIT SUB
+
+FailInvalid:
+    CLOSE #fileNum
+END SUB

@@ -5,24 +5,24 @@
 
 TYPE BMPHeader
     bfType      AS STRING * 2
-    bfSize      AS LONG
-    bfReserved1 AS INTEGER
-    bfReserved2 AS INTEGER
-    bfOffBits   AS LONG
+    bfSize      AS DWORD
+    bfReserved1 AS WORD
+    bfReserved2 AS WORD
+    bfOffBits   AS DWORD
 END TYPE
 
 TYPE BMPInfoHeader
-    biSize          AS LONG
-    biWidth         AS LONG
-    biHeight        AS LONG
-    biPlanes        AS INTEGER
-    biBitCount      AS INTEGER
-    biCompression   AS LONG
-    biSizeImage     AS LONG
-    biXPelsPerMeter AS LONG
-    biYPelsPerMeter AS LONG
-    biClrUsed       AS LONG
-    biClrImportant  AS LONG
+    biSize          AS DWORD
+    biWidth         AS DWORD
+    biHeight        AS DWORD
+    biPlanes        AS WORD
+    biBitCount      AS WORD
+    biCompression   AS DWORD
+    biSizeImage     AS DWORD
+    biXPelsPerMeter AS DWORD
+    biYPelsPerMeter AS DWORD
+    biClrUsed       AS DWORD
+    biClrImportant  AS DWORD
 END TYPE
 
 '******************************************************************************
@@ -34,90 +34,111 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FileBmp_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
-    DIM bmpH AS BMPHeader
-    DIM bmpIH AS BMPInfoHeader
-    DIM fileNum AS INTEGER
-    DIM x AS INTEGER
-    DIM y AS INTEGER
-    DIM spriteWidth AS INTEGER
-    DIM spriteHeight AS INTEGER
-    DIM rowPadding AS INTEGER
-    DIM rowSize AS INTEGER
-    DIM pixelDataSize AS LONG
-    DIM vgaPalette(0 TO 15) AS LONG
-    DIM byteVal AS STRING * 1
-    DIM p1 AS INTEGER
-    DIM p2 AS INTEGER
-    DIM paddingBytes AS STRING
+SUB FileBmp_Write (fullPath AS STRING, errorMessage AS STRING)
+    ' Check if there is anything to save
+    IF currentSprite.boundingBoxX2 = -1 THEN EXIT SUB
     errorMessage = ""
 
-    ' Check if there is anything to save
-    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+    DIM spriteWidth AS DWORD
+    DIM spriteHeight AS DWORD
+    spriteWidth = currentSprite.boundingBoxX2 - currentSprite.boundingBoxX1 + 1
+    spriteHeight = currentSprite.boundingBoxY2 - currentSprite.boundingBoxY1 + 1
 
-    spriteWidth = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
-    spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
+    DIM rowBytes AS DWORD
+    rowBytes = spriteWidth + 1
+    SHIFT RIGHT rowBytes, 1
+    
+    DIM rowPadding AS DWORD
+    rowPadding = (4 - (rowBytes AND 3)) AND 3
 
-    ' BMP rows are padded to a multiple of 4 bytes
-    rowSize = INT((spriteWidth * 4 + 31) / 32) * 4
-    rowPadding = rowSize - (spriteWidth / 2)
-    pixelDataSize = rowSize * spriteHeight
+    DIM imageSize AS DWORD
+    imageSize = (rowBytes + rowPadding) * spriteHeight
+    
+    %fileHeaderSize = 14
+    %infoHeaderSize = 40
+    %paletteEntries = 16
+    %paletteSize = %paletteEntries * 4 'BGRA
 
-    ' --- Fill BMP File Header ---
-    bmpH.bfType = "BM"
-    bmpH.bfSize = 54 + (16 * 4) + pixelDataSize
-    bmpH.bfReserved1 = 0
-    bmpH.bfReserved2 = 0
-    bmpH.bfOffBits = 54 + (16 * 4)
+    DIM pixelDataOffset AS DWORD
+    pixelDataOffset = %fileHeaderSize + %infoHeaderSize + %paletteSize
+    DIM fileSize AS DWORD
+    fileSize = pixelDataOffset + imageSize
 
-    ' --- Fill BMP Info Header ---
-    bmpIH.biSize = 40
-    bmpIH.biWidth = spriteWidth
-    bmpIH.biHeight = spriteHeight
-    bmpIH.biPlanes = 1
-    bmpIH.biBitCount = 4 ' 4 bits per pixel for 16 colors
-    bmpIH.biCompression = 0 ' BI_RGB (no compression)
-    bmpIH.biSizeImage = pixelDataSize
-    bmpIH.biXPelsPerMeter = 0
-    bmpIH.biYPelsPerMeter = 0
-    bmpIH.biClrUsed = 16
-    bmpIH.biClrImportant = 16
-
+    DIM fileNum AS INTEGER
     fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
 
-    ' --- Write Headers ---
-    PUT #fileNum, , bmpH
-    PUT #fileNum, , bmpIH
-
-    ' --- Write Palette (BGR format) ---
-    vgaPalette(0) = &H000000: vgaPalette(1) = &HAA0000: vgaPalette(2) = &H00AA00: vgaPalette(3) = &HAAAA00
-    vgaPalette(4) = &H0000AA: vgaPalette(5) = &HAA00AA: vgaPalette(6) = &H0055AA: vgaPalette(7) = &HAAAAAA
-    vgaPalette(8) = &H555555: vgaPalette(9) = &HFF5555: vgaPalette(10) = &H55FF55: vgaPalette(11) = &HFFFF55
-    vgaPalette(12) = &H5555FF: vgaPalette(13) = &HFF55FF: vgaPalette(14) = &H55FFFF: vgaPalette(15) = &HFFFFFF
-    FOR x = 0 TO 15
-        PUT #fileNum, , vgaPalette(x)
-    NEXT x
-
-    ' --- Write Pixel Data (upside-down and packed) ---
-    FOR y = spr.boundingBoxY2 TO spr.boundingBoxY1 STEP -1
-        FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2 STEP 2
-            p1 = canvas(x, y)
-            IF x + 1 > spr.boundingBoxX2 THEN
-                p2 = 0
-            ELSE
-                p2 = canvas(x + 1, y)
-            END IF
-            byteVal = CHR$((p1 * 16) + p2)
-            PUT #fileNum, , byteVal
-        NEXT x
-        IF rowPadding > 0 THEN
-            paddingBytes = STRING$(rowPadding, 0)
-            PUT #fileNum, , paddingBytes
+      DIM bmpH AS BMPHeader
+      bmpH.bfType = "BM"
+      bmpH.bfSize = fileSize
+      bmpH.bfReserved1 = currentSprite.boundingBoxX1  ' Store original X offset
+      bmpH.bfReserved2 = currentSprite.boundingBoxY1  ' Store original Y offset
+      bmpH.bfOffBits = pixelDataOffset
+      PUT #fileNum, , bmpH
+    
+      DIM bmpIH AS BMPInfoHeader
+      bmpIH.biSize = %infoHeaderSize
+      bmpIH.biWidth = spriteWidth
+      bmpIH.biHeight = spriteHeight
+      bmpIH.biPlanes = 1
+      bmpIH.biBitCount = 4
+      bmpIH.biCompression = 0
+      
+      %dpi72 = 2835
+      
+      bmpIH.biSizeImage = imageSize
+      bmpIH.biXPelsPerMeter = %dpi72
+      bmpIH.biYPelsPerMeter = %dpi72
+      bmpIH.biClrUsed = %paletteEntries
+      bmpIH.biClrImportant = %paletteEntries
+      PUT #fileNum, , bmpIH
+      
+      DIM byteVal AS BYTE
+      DIM vgaPalette(0 TO 15) AS DWORD
+      vgaPalette(0) = &H000000
+      vgaPalette(1) = &H0000AA
+      vgaPalette(2) = &H00AA00
+      vgaPalette(3) = &H00AAAA
+      vgaPalette(4) = &HAA0000
+      vgaPalette(5) = &HAA00AA
+      vgaPalette(6) = &HAA5500
+      vgaPalette(7) = &HAAAAAA
+      vgaPalette(8) = &H555555
+      vgaPalette(9) = &H5555FF
+      vgaPalette(10) = &H55FF55
+      vgaPalette(11) = &H55FFFF
+      vgaPalette(12) = &HFF5555
+      vgaPalette(13) = &HFF55FF
+      vgaPalette(14) = &HFFFF55
+      vgaPalette(15) = &HFFFFFF
+      FOR byteVal = 0 TO 15
+          PUT #fileNum, , vgaPalette(byteVal)
+      NEXT
+      
+      DIM x AS DWORD, y AS DWORD
+      FOR y = currentSprite.boundingBoxY2 TO currentSprite.boundingBoxY1 STEP -1
+        FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2 STEP 2
+          byteVal = currentCanvas(x, y)
+          SHIFT LEFT byteVal, 4
+          byteVal = byteVal OR currentCanvas(x + 1, y)
+          PUT #fileNum, , byteVal
+        NEXT
+        
+        ' Handle odd width: last pixel in high nibble, low nibble 0
+        IF x < currentSprite.boundingBoxX2 THEN
+          byteVal = currentCanvas(currentSprite.boundingBoxX2, y)
+          SHIFT LEFT byteVal, 4
+          PUT #fileNum, , byteVal
         END IF
-    NEXT y
+        
+        ' Padding: write zero bytes
+        byteVal = 0
+        FOR x = 0 TO rowPadding - 1
+          PUT #fileNum, , byteVal
+        NEXT
+    NEXT
 
-    CLOSE #fileNum
+  CLOSE #fileNum
 END SUB
 
 '******************************************************************************
@@ -128,23 +149,10 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FileBmp_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileBmp_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM bmpH AS BMPHeader
     DIM bmpIH AS BMPInfoHeader
     DIM fileNum AS INTEGER
-    DIM x AS LONG, y AS LONG
-    DIM spriteWidth AS LONG, spriteHeight AS LONG
-    DIM topDown AS LONG
-    DIM startX AS LONG, startY AS LONG
-    DIM rowBytes AS LONG, rowSize AS LONG, rowPadding AS LONG
-    DIM b AS LONG
-    DIM byteVal AS STRING * 1
-    DIM p1 AS INTEGER, p2 AS INTEGER
-    DIM dx AS LONG, dy AS LONG
-    DIM srcX AS LONG, srcY AS LONG
-    DIM y0 AS LONG, yStep AS LONG
-    DIM curPos AS LONG
-
     errorMessage = ""
 
     fileNum = FREEFILE
@@ -174,80 +182,54 @@ SUB FileBmp_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
         errorMessage = "Compressed BMP not supported."
         CLOSE #fileNum : EXIT SUB
     END IF
-
-    spriteWidth  = bmpIH.biWidth
-    spriteHeight = bmpIH.biHeight
-    topDown = 0
-    IF spriteHeight < 0 THEN
-        topDown = 1
-        spriteHeight = -spriteHeight
-    END IF
-    IF spriteWidth <= 0 OR spriteHeight <= 0 THEN
+    
+    IF bmpIH.biWidth <= 0 OR bmpIH.biHeight <= 0 THEN
         errorMessage = "Invalid BMP dimensions."
         CLOSE #fileNum : EXIT SUB
     END IF
 
-    ' 4bpp -> 2 pixels/byte
-    rowBytes   = (spriteWidth + 1) \ 2
-    rowSize    = ((rowBytes + 3) \ 4) * 4
-    rowPadding = rowSize - rowBytes
+    ' Calculate row padding (same as write function)
+    DIM rowBytes AS DWORD
+    rowBytes = bmpIH.biWidth + 1
+    SHIFT RIGHT rowBytes, 1
+    
+    DIM rowPadding AS DWORD  
+    rowPadding = (4 - (rowBytes AND 3)) AND 3
 
-    startX = 0
-    startY = 0
+    ' Seek to pixel data
+    SEEK fileNum, bmpH.bfOffBits
 
-    ' Seek to pixel data (PB SEEK setter has no '#'; offset is 1-based position)
-    SEEK fileNum, bmpH.bfOffBits + 1
+    ' Read pixel data (bottom-up, matching write order)
+    DIM byteVal AS BYTE
+    DIM x AS INTEGER
+    DIM y AS INTEGER
 
-    ' Row order
-    IF topDown THEN
-        y0 = 0 : yStep = 1
-    ELSE
-        y0 = spriteHeight - 1 : yStep = -1
-    END IF
-
-    ' --- Pixels ---
-    FOR y = 0 TO spriteHeight - 1
-        srcY = y0 + y * yStep
-        dy = startY + srcY
-        ' consume row anyway; only draw if dy in bounds
-        FOR b = 0 TO rowBytes - 1
-            ON ERROR RESUME NEXT
+    FOR y = bmpIH.biHeight - 1 TO 0 STEP -1
+        FOR x = 0 TO bmpIH.biWidth - 1 STEP 2
             GET #fileNum, , byteVal
-            IF ERR <> 0 OR LEN(byteVal) <> 1 THEN
-                errorMessage = "Unexpected EOF in BMP pixel data."
-                ERRCLEAR : ON ERROR GOTO 0
-                CLOSE #fileNum : EXIT SUB
-            END IF
-            ON ERROR GOTO 0
-
-            p1 = ASC(byteVal) \ 16
-            p2 = ASC(byteVal) AND 15
-
-            IF dy >= 0 AND dy < spr.spriteHeight THEN
-                ' left pixel at x = b*2
-                srcX = b * 2
-                dx = startX + srcX
-                IF dx >= 0 AND dx < spr.spriteWidth THEN
-                    canvas(dx, dy) = p1
-                END IF
-
-                ' right pixel at x = b*2+1, only if within width
-                srcX = b * 2 + 1
-                IF srcX < spriteWidth THEN
-                    dx = startX + srcX
-                    IF dx >= 0 AND dx < spr.spriteWidth THEN
-                        canvas(dx, dy) = p2
-                    END IF
-                END IF
-            END IF
-        NEXT b
-
-        ' skip row padding
-        IF rowPadding > 0 THEN
-            curPos = SEEK(fileNum) + rowPadding
-            SEEK fileNum, curPos
+            currentCanvas(x + 1, y) = byteVal AND &H0F
+            SHIFT RIGHT byteVal, 4
+            currentCanvas(x, y) = byteVal
+        NEXT
+        
+        ' Handle odd width
+        IF x < bmpIH.biWidth THEN
+            GET #fileNum, , byteVal
+            SHIFT RIGHT byteVal, 4
+            currentCanvas(bmpIH.biWidth, y) = byteVal
         END IF
-    NEXT y
+        
+        ' Skip row padding
+        FOR x = 0 TO rowPadding - 1
+            GET #fileNum, , byteVal
+        NEXT
+    NEXT
 
     CLOSE #fileNum
+    
+    ' Update bounding box to match loaded data dimensions at (0,0)
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = bmpIH.biWidth - 1
+    currentSprite.boundingBoxY2 = bmpIH.biHeight - 1
 END SUB

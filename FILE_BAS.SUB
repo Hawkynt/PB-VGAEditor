@@ -10,7 +10,7 @@
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FileBas_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileBas_Read (fullPath AS STRING, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM lineData AS STRING
     DIM y AS INTEGER
@@ -29,16 +29,16 @@ SUB FileBas_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorM
             IF lineData = "99" THEN EXIT DO
             FOR i = 1 TO LEN(lineData) STEP 2
                 x = (i - 1) / 2
-                IF x <= spr.spriteWidth THEN
+                IF x <= currentSprite.spriteWidth THEN
                     IF MID$(lineData, i, 2) = "hg" THEN
-                        canvas(x, y) = 0
+                        currentCanvas(x, y) = 0
                     ELSE
-                        canvas(x, y) = VAL(MID$(lineData, i, 2))
+                        currentCanvas(x, y) = VAL(MID$(lineData, i, 2))
                     END IF
                 END IF
             NEXT i
             y = y + 1
-            IF y > spr.spriteHeight THEN EXIT DO
+            IF y > currentSprite.spriteHeight THEN EXIT DO
         END IF
     LOOP
     CLOSE #fileNum
@@ -52,7 +52,7 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FileBas_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
+SUB FileBas_Write (fullPath AS STRING, errorMessage AS STRING)
     DIM fileNum AS INTEGER
     DIM x AS INTEGER
     DIM y AS INTEGER
@@ -64,14 +64,14 @@ SUB FileBas_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     PRINT #fileNum, "' PowerBASIC Sprite Data"
     PRINT #fileNum, "SpriteLabel:"
     
-    IF spr.boundingBoxX2 <> -1 THEN ' Check if there is anything to save
-        FOR y = spr.boundingBoxY1 TO spr.boundingBoxY2
+    IF currentSprite.boundingBoxX2 <> -1 THEN ' Check if there is anything to save
+        FOR y = currentSprite.boundingBoxY1 TO currentSprite.boundingBoxY2
             rowData = ""
-            FOR x = spr.boundingBoxX1 TO spr.boundingBoxX2
-                IF canvas(x, y) = 0 THEN
+            FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2
+                IF currentCanvas(x, y) = 0 THEN
                     rowData = rowData + "hg"
                 ELSE
-                    rowData = rowData + RIGHT$("00" + LTRIM$(STR$(canvas(x, y))), 2)
+                    rowData = rowData + RIGHT$("00" + LTRIM$(STR$(currentCanvas(x, y))), 2)
                 END IF
             NEXT x
             PRINT #fileNum, "DATA " + CHR$(34) + rowData + CHR$(34)

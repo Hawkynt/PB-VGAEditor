@@ -2,25 +2,27 @@
 ' Common Interface: FilePcx_Read, FilePcx_Write
 ' Namespace: FilePcx (pseudo-namespace via function prefixes)
 
-
+%MANUFACTURER_ZSOFT = 10
+%ENCODING_RLE = 1
+    
 TYPE PCXHeader
     Manufacturer AS BYTE
     Version      AS BYTE
     Encoding     AS BYTE
     BitsPerPixel AS BYTE
-    Xmin         AS INTEGER
-    Ymin         AS INTEGER
-    Xmax         AS INTEGER
-    Ymax         AS INTEGER
-    HDpi         AS INTEGER
-    VDpi         AS INTEGER
+    Xmin         AS WORD
+    Ymin         AS WORD
+    Xmax         AS WORD
+    Ymax         AS WORD
+    HDpi         AS WORD
+    VDpi         AS WORD
     Colormap     AS STRING * 48
     Reserved     AS BYTE
     NPlanes      AS BYTE
-    BytesPerLine AS INTEGER
-    PaletteInfo  AS INTEGER
-    HScrSize     AS INTEGER
-    VScrSize     AS INTEGER
+    BytesPerLine AS WORD
+    PaletteInfo  AS WORD
+    HScrSize     AS WORD
+    VScrSize     AS WORD
     Filler       AS STRING * 54
 END TYPE
 
@@ -33,30 +35,21 @@ END TYPE
 '*   spr (BYREF Sprite): The sprite metadata (for bounding box).
 '*   canvas() (BYREF INTEGER): The sprite data array to save.
 '******************************************************************************
-SUB FilePcx_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
-    DIM header AS PCXHeader
-    DIM fileNum AS INTEGER
-    DIM x AS INTEGER
-    DIM y AS INTEGER
-    DIM spriteWidth AS INTEGER
-    DIM spriteHeight AS INTEGER
-    DIM runCount AS INTEGER
-    DIM runValue AS INTEGER
-    DIM vgaPalette(0 TO 15) AS STRING * 3
-    DIM byteVal AS STRING * 1
-    DIM paddingBytes AS STRING
+SUB FilePcx_Write (fullPath AS STRING, errorMessage AS STRING)
     errorMessage = ""
 
     ' Check if there is anything to save
-    IF spr.boundingBoxX2 = -1 THEN EXIT SUB
+    IF currentSprite.boundingBoxX2 = -1 THEN EXIT SUB
 
-    spriteWidth = spr.boundingBoxX2 - spr.boundingBoxX1 + 1
-    spriteHeight = spr.boundingBoxY2 - spr.boundingBoxY1 + 1
-
+    DIM spriteWidth AS WORD  : spriteWidth = currentSprite.boundingBoxX2 - currentSprite.boundingBoxX1 + 1
+    DIM spriteHeight AS WORD : spriteHeight = currentSprite.boundingBoxY2 - currentSprite.boundingBoxY1 + 1
+    
     ' --- Fill PCX Header ---
-    header.Manufacturer = 10 ' ZSoft
+    DIM header AS PCXHeader
+    %PALETTE_COLOR=1
+    header.Manufacturer = %MANUFACTURER_ZSOFT
     header.Version = 5      ' Version 3.0 with palette
-    header.Encoding = 1      ' RLE encoding
+    header.Encoding = %ENCODING_RLE
     header.BitsPerPixel = 8  ' 8 bits per pixel
     header.Xmin = 0
     header.Ymin = 0
@@ -68,54 +61,92 @@ SUB FilePcx_Write (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, error
     header.Reserved = 0
     header.NPlanes = 1 ' 1 plane for 256-color mode
     header.BytesPerLine = spriteWidth
-    header.PaletteInfo = 1 ' Color
-    header.HScrSize = 0
-    header.VScrSize = 0
+    header.PaletteInfo = %PALETTE_COLOR
+    header.HScrSize = 0  ' No offset storage for consistency with other formats
+    header.VScrSize = 0  ' No offset storage for consistency with other formats
     header.Filler = STRING$(54, 0)
 
-    fileNum = FREEFILE
+    DIM fileNum AS INTEGER : fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
 
-    ' --- Write Header ---
-    PUT #fileNum, , header
+        ' --- Write Header ---
+        PUT #fileNum, , header
 
-    ' --- Write Image Data with RLE ---
-    FOR y = spr.boundingBoxY1 TO spr.boundingBoxY2
-        x = spr.boundingBoxX1
-        DO WHILE x <= spr.boundingBoxX2
-            runValue = canvas(x, y)
-            runCount = 1
-            x = x + 1
-            DO WHILE x <= spr.boundingBoxX2 AND canvas(x, y) = runValue AND runCount < 63
-                runCount = runCount + 1
-                x = x + 1
-            LOOP
-            
-            IF runCount > 1 OR (runValue AND &HC0) = &HC0 THEN
-                byteVal = CHR$(&HC0 OR runCount)
+        DIM x AS WORD
+        DIM y AS WORD
+        DIM runCount AS BYTE
+        DIM runValue AS BYTE
+        DIM byteVal AS BYTE
+        ' --- Write Image Data with RLE (optimized) ---
+        FOR y = currentSprite.boundingBoxY1 TO currentSprite.boundingBoxY2
+            x = currentSprite.boundingBoxX1
+            DO WHILE x <= currentSprite.boundingBoxX2
+                runValue = currentCanvas(x, y)
+                runCount = 1
+                
+                ' Find run length - separate the bounds check for better branch prediction
+                DO WHILE runCount < 63
+                    INCR x
+                    IF x > currentSprite.boundingBoxX2 THEN 
+                        DECR x
+                        EXIT DO
+                    END IF
+                    IF currentCanvas(x, y) <> runValue THEN 
+                        DECR x
+                        EXIT DO
+                    END IF
+                    runCount = runCount + 1
+                LOOP
+                
+                ' Write RLE pair - check if encoding is needed only once
+                IF runCount > 1 OR (runValue >= &HC0) THEN
+                    byteVal = &HC0 OR runCount
+                    PUT #fileNum, , byteVal
+                END IF
+                byteVal = runValue
                 PUT #fileNum, , byteVal
-            END IF
-            byteVal = CHR$(runValue)
+                
+                INCR x
+            LOOP
+        NEXT y
+
+        ' --- Write 256-Color Palette Signature and Palette ---
+        %BLOCK_TYPE_PALETTE=12
+        byteVal = %BLOCK_TYPE_PALETTE
+        PUT #fileNum, , byteVal
+
+        DIM vgaPalette(0 TO 15) AS DWORD
+        vgaPalette(0) = &H000000
+        vgaPalette(1) = &H0000AA
+        vgaPalette(2) = &H00AA00
+        vgaPalette(3) = &H00AAAA
+        vgaPalette(4) = &HAA0000
+        vgaPalette(5) = &HAA00AA
+        vgaPalette(6) = &HAA5500
+        vgaPalette(7) = &HAAAAAA
+        vgaPalette(8) = &H555555
+        vgaPalette(9) = &H5555FF
+        vgaPalette(10) = &H55FF55
+        vgaPalette(11) = &H55FFFF
+        vgaPalette(12) = &HFF5555
+        vgaPalette(13) = &HFF55FF
+        vgaPalette(14) = &HFFFF55
+        vgaPalette(15) = &HFFFFFF
+        FOR byteVal = 0 TO 15
+            DIM r AS BYTE, g AS BYTE, b AS BYTE
+            r = (vgaPalette(byteVal) \ 65536) AND &HFF
+            g = (vgaPalette(byteVal) \ 256) AND &HFF
+            b = vgaPalette(byteVal) AND &HFF
+            PUT #fileNum, , r
+            PUT #fileNum, , g
+            PUT #fileNum, , b
+        NEXT
+        
+        ' Write padding bytes for remaining palette entries (240 * 3 = 720 bytes)
+        byteVal = 0
+        FOR x = 1 TO 720
             PUT #fileNum, , byteVal
-        LOOP
-    NEXT y
-
-    ' --- Write 256-Color Palette Signature and Palette ---
-    byteVal = CHR$(12) ' Palette signature
-    PUT #fileNum, , byteVal
-
-    vgaPalette(0) = CHR$(0, 0, 0): vgaPalette(1) = CHR$(0, 0, 170): vgaPalette(2) = CHR$(0, 170, 0): vgaPalette(3) = CHR$(0, 170, 170)
-    vgaPalette(4) = CHR$(170, 0, 0): vgaPalette(5) = CHR$(170, 0, 170): vgaPalette(6) = CHR$(170, 85, 0): vgaPalette(7) = CHR$(170, 170, 170)
-    vgaPalette(8) = CHR$(85, 85, 85): vgaPalette(9) = CHR$(85, 85, 255): vgaPalette(10) = CHR$(85, 255, 85): vgaPalette(11) = CHR$(85, 255, 255)
-    vgaPalette(12) = CHR$(255, 85, 85): vgaPalette(13) = CHR$(255, 85, 255): vgaPalette(14) = CHR$(255, 255, 85): vgaPalette(15) = CHR$(255, 255, 255)
-    
-    FOR x = 0 TO 15
-        PUT #fileNum, , vgaPalette(x)
-    NEXT x
-    
-    ' Pad the rest of the 256-color palette
-    paddingBytes = STRING$(240 * 3, 0)
-    PUT #fileNum, , paddingBytes
+        NEXT
 
     CLOSE #fileNum
 END SUB
@@ -128,62 +159,58 @@ END SUB
 '*   spr (BYREF Sprite): The sprite metadata.
 '*   canvas() (BYREF INTEGER): The sprite data array to fill.
 '******************************************************************************
-SUB FilePcx_Read (fullPath AS STRING, spr AS Sprite, canvas() AS INTEGER, errorMessage AS STRING)
-    DIM header AS PCXHeader
-    DIM fileNum AS INTEGER
-    DIM x AS INTEGER
-    DIM y AS INTEGER
-    DIM spriteWidth AS INTEGER
-    DIM spriteHeight AS INTEGER
-    DIM startX AS INTEGER
-    DIM startY AS INTEGER
-    DIM runCount AS INTEGER
-    DIM runValue AS INTEGER
-    DIM dataByte AS STRING * 1
+SUB FilePcx_Read (fullPath AS STRING, errorMessage AS STRING)
     errorMessage = ""
 
-    fileNum = FREEFILE
+    DIM fileNum AS INTEGER : fileNum = FREEFILE
     OPEN fullPath FOR BINARY AS #fileNum
 
-    ' --- Read Header ---
-    GET #fileNum, , header
+        ' --- Read Header ---
+        DIM header AS PCXHeader
+        GET #fileNum, , header
 
-    ' --- Validate Header ---
-    IF header.Manufacturer <> 10 OR header.Encoding <> 1 OR header.BitsPerPixel <> 8 THEN
-        errorMessage = "Not a valid 256-color PCX file."
-        CLOSE #fileNum
-        EXIT SUB
-    END IF
+        ' --- Validate Header ---
+        IF header.Manufacturer <> %MANUFACTURER_ZSOFT OR header.Encoding <> %ENCODING_RLE OR header.BitsPerPixel <> 8 THEN
+            errorMessage = "Not a valid 256-color PCX file."
+            CLOSE #fileNum
+            EXIT SUB
+        END IF
 
-    spriteWidth = header.Xmax - header.Xmin + 1
-    spriteHeight = header.Ymax - header.Ymin + 1
+        DIM spriteWidth AS WORD  : spriteWidth = header.Xmax - header.Xmin + 1
+        DIM spriteHeight AS WORD : spriteHeight = header.Ymax - header.Ymin + 1
 
-    ' Load at origin like other formats
-    startX = 0
-    startY = 0
-
-    ' --- Read Image Data with RLE Decompression ---
-    FOR y = 0 TO spriteHeight - 1
-        x = 0
-        DO WHILE x < spriteWidth
-            GET #fileNum, , dataByte
-            IF (ASC(dataByte) AND &HC0) = &HC0 THEN
-                runCount = ASC(dataByte) AND &H3F
+        DIM runCount AS BYTE
+        DIM dataByte AS BYTE
+        DIM i AS BYTE
+        
+        ' --- Read Image Data with RLE Decompression ---
+        ' Always load at position 0,0 for consistency
+        DIM x AS WORD
+        DIM y AS WORD
+        FOR y = 0 TO spriteHeight - 1
+            x = 0
+            DO WHILE x < spriteWidth
                 GET #fileNum, , dataByte
-                runValue = ASC(dataByte)
-            ELSE
-                runCount = 1
-                runValue = ASC(dataByte)
-            END IF
-
-            FOR i = 1 TO runCount
-                IF (startX + x + i - 1) <= spr.spriteWidth AND (startY + y) <= spr.spriteHeight THEN
-                    canvas(startX + x + i - 1, startY + y) = runValue
+                IF (dataByte AND &HC0) = &HC0 THEN
+                    runCount = dataByte AND &H3F
+                    GET #fileNum, , dataByte
+                    FOR i = 1 TO runCount
+                       currentCanvas(x, y) = dataByte
+                       INCR x
+                    NEXT i
+                ELSE
+                    currentCanvas(x, y) = dataByte
+                    INCR x
                 END IF
-            NEXT i
-            x = x + runCount
-        LOOP
+            LOOP
     NEXT y
 
     CLOSE #fileNum
+    
+    ' Update bounding box to match loaded data dimensions at (0,0)
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = spriteWidth - 1
+    currentSprite.boundingBoxY2 = spriteHeight - 1
+
 END SUB
