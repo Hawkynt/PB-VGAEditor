@@ -36,6 +36,9 @@ These are standard formats for broader compatibility. When saving in these forma
 *   **`.BMP` (Windows Bitmap):** A standard, uncompressed Windows image format. The editor saves 16-color BMP files, which are widely supported.
 *   **`.ICO` (Windows Icon):** The standard format for icons in Windows. The editor creates 16-color icons, including the necessary transparency masks.
 *   **`.XPM` (X PixMap):** A text-based image format commonly used in X Window System environments. It stores image data as C-style arrays, making it human-readable and easily embeddable in source code.
+*   **`.GIF` (Graphics Interchange Format):** The popular web image format with LZW compression and animation support. The editor exports 16-color static GIF images.
+*   **`.TGA` (Targa):** A high-quality image format commonly used in graphics applications, supporting various bit depths and alpha channels.
+*   **`.TIF` (Tagged Image File Format):** A flexible image format widely used for high-quality images, supporting various compression methods and color depths.
 
 ## 💻 How to Use
 
