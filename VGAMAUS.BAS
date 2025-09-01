@@ -76,15 +76,13 @@ DIM formatRegistry(0) AS SHARED FileFormat
 
 ' Shared variables for method pointer workaround (arrays can't be passed to method pointers)
 DIM currentSprite AS SHARED Sprite
-DIM currentCanvas(1, 1) AS SHARED BYTE
-
-' Initialize shared variables before use (canvas will be dimensioned in InitializeSprite)
 currentSprite.spriteWidth = (%GRID_X_MAX / %GRID_X_STEP)
 currentSprite.spriteHeight = (%GRID_Y_MAX - %GRID_START_Y) / %GRID_Y_STEP
 currentSprite.boundingBoxX1 = -1
 currentSprite.boundingBoxY1 = -1
 currentSprite.boundingBoxX2 = -1
 currentSprite.boundingBoxY2 = -1
+DIM currentCanvas(currentSprite.spriteWidth, currentSprite.spriteHeight) AS SHARED BYTE
 
 $INCLUDE "SPRITE.SUB"
 
@@ -221,7 +219,7 @@ SUB InitializeFormatRegistry
     AddFormat "XPM", CODEPTR32(FileXpm_Read), CODEPTR32(FileXpm_Write)
     AddFormat "TGA", CODEPTR32(FileTga_Read), CODEPTR32(FileTga_Write)
     AddFormat "TIF", CODEPTR32(FileTif_Read), CODEPTR32(FileTif_Write)
-    'AddFormat "GIF", CODEPTR32(FileGif_Read), CODEPTR32(FileGif_Write)
+    AddFormat "GIF", CODEPTR32(FileGif_Read), CODEPTR32(FileGif_Write)
 END SUB
 
 '******************************************************************************
@@ -287,25 +285,7 @@ SUB CallFormatRead (BYVAL formatID AS INTEGER, BYVAL fullPath AS STRING, errorMe
     ' Get function pointer and call dynamically with explicit fallbacks
     readPtr = formatRegistry(formatID).readFunction
     IF readPtr <> 0 THEN
-        IF readPtr = CODEPTR32(FileVga_Read) THEN 
-            CALL FileVga_Read(fullPath, errorMessage)
-        ELSEIF readPtr = CODEPTR32(FileBas_Read) THEN
-            CALL FileBas_Read(fullPath, errorMessage)
-        ELSEIF readPtr = CODEPTR32(FilePcx_Read) THEN
-            CALL FilePcx_Read(fullPath, errorMessage)
-        ELSEIF readPtr = CODEPTR32(FileBmp_Read) THEN
-            CALL FileBmp_Read(fullPath, errorMessage)
-        ELSEIF readPtr = CODEPTR32(FileIco_Read) THEN
-            CALL FileIco_Read(fullPath, errorMessage)
-        ELSEIF readPtr = CODEPTR32(FileXpm_Read) THEN
-            CALL FileXpm_Read(fullPath, errorMessage)
-        ELSEIF readPtr = CODEPTR32(FileTga_Read) THEN
-            CALL FileTga_Read(fullPath, errorMessage)
-        ELSE
-            ' Fallback for any future formats
-            'CALL DWORD readPtr BDECL (fullPath, errorMessage)
-            errorMessage = "No read function for format: " + formatRegistry(formatID).extension
-        END IF
+        CALL DWORD readPtr BDECL (fullPath, errorMessage)
     ELSE
         errorMessage = "No read function for format: " + formatRegistry(formatID).extension
     END IF
@@ -333,24 +313,7 @@ SUB CallFormatWrite (BYVAL formatID AS INTEGER, BYVAL fullPath AS STRING, errorM
     ' Get function pointer and call dynamically with explicit fallbacks
     writePtr = formatRegistry(formatID).writeFunction
     IF writePtr <> 0 THEN
-        IF writePtr = CODEPTR32(FileVga_Write) THEN
-            CALL FileVga_Write(fullPath, errorMessage)
-        ELSEIF writePtr = CODEPTR32(FileBas_Write) THEN
-            CALL FileBas_Write(fullPath, errorMessage)
-        ELSEIF writePtr = CODEPTR32(FilePcx_Write) THEN
-            CALL FilePcx_Write(fullPath, errorMessage)
-        ELSEIF writePtr = CODEPTR32(FileBmp_Write) THEN
-            CALL FileBmp_Write(fullPath, errorMessage)
-        ELSEIF writePtr = CODEPTR32(FileIco_Write) THEN
-            CALL FileIco_Write(fullPath, errorMessage)
-        ELSEIF writePtr = CODEPTR32(FileXpm_Write) THEN
-            CALL FileXpm_Write(fullPath, errorMessage)
-        ELSEIF writePtr = CODEPTR32(FileTga_Write) THEN
-            CALL FileTga_Write(fullPath, errorMessage)
-        ELSE
-            ' Fallback for any future formats
-            CALL DWORD writePtr BDECL (fullPath, errorMessage)
-        END IF
+        CALL DWORD writePtr BDECL (fullPath, errorMessage)
     ELSE
         errorMessage = "No write function for format: " + formatRegistry(formatID).extension
     END IF
@@ -808,7 +771,7 @@ SUB MainEditorLoop
     DIM currentFileName AS STRING
     DIM toolIcons(0 TO %NUM_TOOLS - 1) AS STRING
 
-    InitializeSprite currentSprite, currentCanvas()
+    'InitializeSprite currentSprite, currentCanvas()
     LoadToolIcons toolIcons()
 
     isSaved = %TRUE
