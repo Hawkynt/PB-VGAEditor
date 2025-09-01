@@ -1,0 +1,505 @@
+' GIF File Format Module
+' Common Interface: FileGIF_Read, FileGIF_Write
+' Namespace: FileGIF (pseudo-namespace via function prefixes)
+' GIF87a implementation with proper LZW compression
+
+TYPE GIFHeader
+    Signature   AS STRING * 3  ' "GIF"
+    Version     AS STRING * 3  ' "87a"
+END TYPE
+
+TYPE GIFScreenDescriptor
+    ScreenWidth     AS WORD
+    ScreenHeight    AS WORD
+    Packed          AS BYTE  ' Packed field with color info
+    BackgroundIndex AS BYTE
+    PixelAspect     AS BYTE
+END TYPE
+
+TYPE GIFImageDescriptor
+    Separator   AS BYTE  ' 0x2C
+    LeftPos     AS WORD
+    TopPos      AS WORD
+    ImageWidth  AS WORD
+    ImageHeight AS WORD
+    Packed      AS BYTE  ' Packed field
+END TYPE
+
+' GIF constants
+%GIF_SEP_IMAGE    = &H2C
+%GIF_TRAILER      = &H3B
+%GCT_FLAG         = &H80
+%COLOR_RES_SHIFT  = 4
+%GCT_SIZE_MASK    = &H07
+
+FUNCTION GIF_GetVgaR(BYVAL colorIndex AS INTEGER) AS BYTE
+    SELECT CASE colorIndex
+        CASE 0 TO 3:   GIF_GetVgaR = &H00
+        CASE 4 TO 7:   GIF_GetVgaR = &HAA
+        CASE 8 TO 11:  GIF_GetVgaR = &H55
+        CASE 12 TO 15: GIF_GetVgaR = &HFF
+        CASE ELSE:     GIF_GetVgaR = &H00
+    END SELECT
+END FUNCTION
+
+FUNCTION GIF_GetVgaG(BYVAL colorIndex AS INTEGER) AS BYTE
+    SELECT CASE colorIndex
+        CASE 0,1,4,5:    GIF_GetVgaG = &H00
+        CASE 2,3,7:      GIF_GetVgaG = &HAA
+        CASE 6:          GIF_GetVgaG = &H55
+        CASE 8,9,12,13:  GIF_GetVgaG = &H55
+        CASE 10,11,14,15: GIF_GetVgaG = &HFF
+        CASE ELSE:       GIF_GetVgaG = &H00
+    END SELECT
+END FUNCTION
+
+FUNCTION GIF_GetVgaB(BYVAL colorIndex AS INTEGER) AS BYTE
+    SELECT CASE colorIndex
+        CASE 0,2,4,6:    GIF_GetVgaB = &H00
+        CASE 1,3,5,7:    GIF_GetVgaB = &HAA
+        CASE 8,10,12,14: GIF_GetVgaB = &H55
+        CASE 9,11,13,15: GIF_GetVgaB = &HFF
+        CASE ELSE:       GIF_GetVgaB = &H00
+    END SELECT
+END FUNCTION
+
+' LZW Dictionary entry structure
+TYPE LZWEntry
+    prefix AS INTEGER     ' Previous code in sequence (-1 for single pixels)
+    suffix AS BYTE        ' Current pixel value
+    nextEntry AS INTEGER  ' Next entry in hash chain (-1 for end)
+END TYPE
+
+FUNCTION LZW_HashCode(BYVAL prefix AS INTEGER, BYVAL suffix AS BYTE) AS INTEGER
+    ' Simple hash function for dictionary lookup
+    LZW_HashCode = ((prefix * 257) XOR suffix) AND 4095
+END FUNCTION
+
+FUNCTION LZW_FindMatch(dict() AS LZWEntry, BYVAL prefix AS INTEGER, BYVAL suffix AS BYTE, BYVAL dictSize AS INTEGER) AS INTEGER
+    ' Find matching sequence in dictionary, return code or -1 if not found
+    DIM hash AS INTEGER : hash = LZW_HashCode(prefix, suffix)
+    DIM code AS INTEGER : code = hash
+    
+    DO WHILE code < dictSize
+        IF dict(code).prefix = prefix AND dict(code).suffix = suffix THEN
+            LZW_FindMatch = code
+            EXIT FUNCTION
+        END IF
+        code = dict(code).nextEntry
+        IF code = -1 THEN EXIT DO
+    LOOP
+    
+    LZW_FindMatch = -1
+END FUNCTION
+
+SUB LZW_AddEntry(dict() AS LZWEntry, BYVAL prefix AS INTEGER, BYVAL suffix AS BYTE, BYVAL dictSize AS INTEGER)
+    ' Add new entry to dictionary
+    IF dictSize >= 4096 THEN EXIT SUB
+    
+    dict(dictSize).prefix = prefix
+    dict(dictSize).suffix = suffix
+    dict(dictSize).nextEntry = -1
+    
+    ' Link into hash chain
+    DIM hash AS INTEGER : hash = LZW_HashCode(prefix, suffix)
+    IF hash < dictSize THEN
+        dict(dictSize).nextEntry = dict(hash).nextEntry
+        dict(hash).nextEntry = dictSize
+    END IF
+END SUB
+
+SUB LZW_OutputCode(BYVAL code AS INTEGER, BYVAL codeBits AS INTEGER, outputBuffer() AS BYTE, outputPos AS LONG, bitAccum AS LONG, bitsUsed AS INTEGER)
+    ' Output code to bit stream (LSB first)
+    DIM i AS INTEGER
+    FOR i = 0 TO codeBits - 1
+        IF (code AND 1) <> 0 THEN
+            bitAccum = bitAccum OR (1& * (2& ^ bitsUsed))
+        END IF
+        code = code \ 2
+        bitsUsed = bitsUsed + 1
+        
+        IF bitsUsed = 8 THEN
+            outputBuffer(outputPos) = bitAccum AND 255
+            outputPos = outputPos + 1
+            bitAccum = 0
+            bitsUsed = 0
+        END IF
+    NEXT
+END SUB
+
+
+SUB FileGIF_Write (fullPath AS STRING, errorMessage AS STRING)
+    errorMessage = ""
+
+    IF currentSprite.boundingBoxX2 = -1 THEN EXIT SUB
+
+    DIM imgW AS WORD, imgH AS WORD
+    imgW = currentSprite.boundingBoxX2 - currentSprite.boundingBoxX1 + 1
+    imgH = currentSprite.boundingBoxY2 - currentSprite.boundingBoxY1 + 1
+    IF imgW = 0 OR imgH = 0 THEN EXIT SUB
+
+    DIM fileNum AS INTEGER : fileNum = FREEFILE
+    ON ERROR RESUME NEXT
+        OPEN fullPath FOR BINARY AS #fileNum
+        IF ERR <> 0 THEN 
+            errorMessage = "Cannot create file: " + fullPath
+            ERRCLEAR : ON ERROR GOTO 0 
+            EXIT SUB
+        END IF
+    ON ERROR GOTO 0
+    
+    ' --- Header "GIF89a" ---
+    DIM b AS BYTE
+    b = ASC("G"): PUT #fileNum, , b
+    b = ASC("I"): PUT #fileNum, , b  
+    b = ASC("F"): PUT #fileNum, , b
+    b = ASC("8"): PUT #fileNum, , b
+    b = ASC("9"): PUT #fileNum, , b
+    b = ASC("a"): PUT #fileNum, , b
+
+    ' --- Logical Screen Descriptor ---
+    b = imgW AND 255: PUT #fileNum, , b        ' width LSB
+    b = (imgW \ 256) AND 255: PUT #fileNum, , b ' width MSB  
+    b = imgH AND 255: PUT #fileNum, , b        ' height LSB
+    b = (imgH \ 256) AND 255: PUT #fileNum, , b ' height MSB
+    b = &HB3: PUT #fileNum, , b                ' packed (GCT=1, CR=2, GCT size=3)
+    b = &H00: PUT #fileNum, , b                ' background color index
+    b = &H00: PUT #fileNum, , b                ' pixel aspect ratio
+
+    ' --- Global Color Table (16 colors * 3 bytes each) ---
+    DIM c AS INTEGER
+    FOR c = 0 TO 15
+        b = GIF_GetVgaR(c): PUT #fileNum, , b
+        b = GIF_GetVgaG(c): PUT #fileNum, , b
+        b = GIF_GetVgaB(c): PUT #fileNum, , b
+    NEXT
+
+    ' --- Graphic Control Extension ---
+    b = &H21: PUT #fileNum, , b                ' extension introducer
+    b = &HF9: PUT #fileNum, , b                ' graphic control label
+    b = &H04: PUT #fileNum, , b                ' block size
+    b = &H00: PUT #fileNum, , b                ' packed field (no disposal, no user input, no transparency)
+    b = &H00: PUT #fileNum, , b                ' delay time LSB
+    b = &H00: PUT #fileNum, , b                ' delay time MSB
+    b = &H00: PUT #fileNum, , b                ' transparent color index
+    b = &H00: PUT #fileNum, , b                ' block terminator
+
+    ' --- Image Descriptor ---
+    b = &H2C: PUT #fileNum, , b                ' image separator
+    b = &H00: PUT #fileNum, , b                ' left pos LSB
+    b = &H00: PUT #fileNum, , b                ' left pos MSB
+    b = &H00: PUT #fileNum, , b                ' top pos LSB  
+    b = &H00: PUT #fileNum, , b                ' top pos MSB
+    b = imgW AND 255: PUT #fileNum, , b        ' width LSB
+    b = (imgW \ 256) AND 255: PUT #fileNum, , b ' width MSB
+    b = imgH AND 255: PUT #fileNum, , b        ' height LSB
+    b = (imgH \ 256) AND 255: PUT #fileNum, , b ' height MSB
+    b = &H00: PUT #fileNum, , b                ' packed (no local color table)
+
+        ' --- LZW Data Stream (fixed, valid GIF) ---
+    ' 16-color images => min LZW code size is 4 (bits-per-pixel)
+    b = &H04: PUT #fileNum, , b
+
+    ' Encoder strategy: "uncompressed" LZW
+    ' - write each pixel as a code with constant width (mcs+1)
+    ' - inject CLEAR often enough so the decoder never needs wider codes
+    ' - finish with EOI, flush bits, packetize into <=255-byte sub-blocks
+
+    DIM mcs       AS BYTE    : mcs = 4                  ' 16 colors -> 4
+    DIM clearCode AS WORD : clearCode = 1
+    SHIFT LEFT clearCode, mcs     ' 16
+    DIM eoiCode   AS WORD : eoiCode   = clearCode + 1 ' 17
+    DIM codeSize  AS BYTE    : codeSize  = mcs + 1       ' start at 5 bits
+
+    ' number of codes we can safely output before the decoder would need 6 bits
+    ' general formula: 2^(mcs+1) - eoi - 1
+    DIM period AS INTEGER : period = 1
+    SHIFT LEFT period, codeSize
+    period = period - eoiCode - 1  ' 32 - 17 - 1 = 14
+
+    ' bit- and packet-buffers
+    DIM bitBuf AS LONG, bitCnt AS INTEGER
+    DIM packet AS STRING
+    bitBuf = 0 : bitCnt = 0 : packet = ""
+
+    ' helper local proc calls
+    CALL GIF_WriteCode(fileNum, packet, clearCode, codeSize, bitBuf, bitCnt)
+
+    DIM x AS INTEGER, y AS INTEGER, i AS LONG : i = 0
+    FOR y = currentSprite.boundingBoxY1 TO currentSprite.boundingBoxY2
+      FOR x = currentSprite.boundingBoxX1 TO currentSprite.boundingBoxX2
+        IF (i MOD period) = 0 THEN CALL GIF_WriteCode(fileNum, packet, clearCode, codeSize, bitBuf, bitCnt)
+        CALL GIF_WriteCode(fileNum, packet, (currentCanvas(x, y) AND 15), codeSize, bitBuf, bitCnt)
+        INCR i
+      NEXT
+    NEXT
+
+    ' end-of-information
+    CALL GIF_WriteCode(fileNum, packet, eoiCode, codeSize, bitBuf, bitCnt)
+
+    ' flush remaining bits (if any)
+    IF bitCnt > 0 THEN
+      DIM tailB AS BYTE
+      tailB = bitBuf AND &HFF
+      CALL GIF_PacketPutByte(fileNum, packet, tailB)
+      bitBuf = 0 : bitCnt = 0
+    END IF
+
+    ' flush last sub-block and write 0x00 block terminator
+    CALL GIF_PacketFlush(fileNum, packet)
+    b = &H00: PUT #fileNum, , b
+    
+    ' --- Trailer ---
+    b = &H3B: PUT #fileNum, , b
+
+    CLOSE #fileNum
+END SUB
+
+SUB GIF_PacketPutByte(BYVAL hFile AS INTEGER, packet AS STRING, BYVAL b AS BYTE)
+  packet = packet + CHR$(b)
+  IF LEN(packet) = 255 THEN
+    DIM code as BYTE: code = 255
+    PUT #hFile, , code
+    PUT #hFile, , packet
+    packet = ""
+  END IF
+END SUB
+
+SUB GIF_PacketFlush (BYVAL hFile AS INTEGER, packet AS STRING)
+  IF LEN(packet) THEN
+    DIM code AS BYTE: code=LEN(packet)
+    PUT #hFile, , code
+    PUT #hFile, , packet
+    packet = ""
+  END IF
+END SUB
+
+' --- LSB-first variable-width code writer for LZW ---
+SUB GIF_WriteCode (BYVAL hFile AS INTEGER, packet AS STRING, BYVAL code AS WORD, BYVAL nbits AS BYTE, bitBuf AS LONG, bitCnt AS INTEGER)
+  bitBuf = bitBuf OR ( (code AND &HFFFF) * (2 ^ bitCnt) )
+  bitCnt = bitCnt + nbits
+
+  DO WHILE bitCnt >= 8
+    DIM outB AS BYTE
+    outB = bitBuf AND &HFF
+    CALL GIF_PacketPutByte(hFile, packet, outB)
+    bitBuf = bitBuf \ 256
+    bitCnt = bitCnt - 8
+  LOOP
+END SUB
+
+SUB GIF_WriteBits(buffer() AS BYTE, bitPos AS INTEGER, value AS INTEGER, numBits AS INTEGER)
+    DIM i AS INTEGER
+    FOR i = 0 TO numBits - 1
+        IF (value AND (1 * (2 ^ i))) <> 0 THEN
+            DIM byteIdx AS INTEGER, bitIdx AS INTEGER
+            byteIdx = bitPos \ 8
+            bitIdx = bitPos AND 7
+            buffer(byteIdx) = buffer(byteIdx) OR (1 * (2 ^ bitIdx))
+        END IF
+        bitPos = bitPos + 1
+    NEXT
+END SUB
+
+SUB FileGIF_Read (fullPath AS STRING, errorMessage AS STRING)
+    errorMessage = ""
+
+    DIM fileNum AS INTEGER : fileNum = FREEFILE
+    ON ERROR RESUME NEXT
+        OPEN fullPath FOR BINARY AS #fileNum
+        IF ERR <> 0 THEN
+            errorMessage = "Cannot open file: " + fullPath
+            ERRCLEAR : ON ERROR GOTO 0
+            EXIT SUB
+        END IF
+    ON ERROR GOTO 0
+
+    ' --- Read Header ---
+    DIM hdr AS GIFHeader
+    GET #fileNum, , hdr
+    IF hdr.Signature <> "GIF" THEN
+        errorMessage = "Not a GIF file"
+        CLOSE #fileNum : EXIT SUB
+    END IF
+
+    ' --- Read Screen Descriptor ---
+    DIM scr AS GIFScreenDescriptor
+    GET #fileNum, , scr
+    
+    DIM imgW AS WORD, imgH AS WORD
+    imgW = scr.ScreenWidth
+    imgH = scr.ScreenHeight
+    
+    IF imgW = 0 OR imgH = 0 THEN
+        errorMessage = "Invalid GIF dimensions"
+        CLOSE #fileNum : EXIT SUB
+    END IF
+
+    ' Check for global color table
+    IF (scr.Packed AND %GCT_FLAG) = 0 THEN
+        errorMessage = "GIF missing global color table"
+        CLOSE #fileNum : EXIT SUB
+    END IF
+    
+    ' --- Skip Global Color Table (we'll use our VGA palette) ---
+    DIM gctSize AS INTEGER
+    gctSize = 2 ^ ((scr.Packed AND %GCT_SIZE_MASK) + 1)
+    DIM skipByte AS BYTE
+    DIM i AS INTEGER
+    FOR i = 1 TO gctSize * 3
+        GET #fileNum, , skipByte
+    NEXT
+
+    ' --- Skip Extensions and find Image Descriptor ---
+    DIM img AS GIFImageDescriptor
+    DIM nextByte AS BYTE
+    DIM foundImage AS INTEGER : foundImage = 0
+    
+    DO WHILE foundImage = 0
+        GET #fileNum, , nextByte
+        IF nextByte = &H21 THEN
+            ' Extension - read label and skip data
+            DIM extLabel AS BYTE
+            GET #fileNum, , extLabel
+            
+            ' Read sub-blocks until terminator (0)
+            DIM subBlockSize AS BYTE
+            DO
+                GET #fileNum, , subBlockSize
+                IF subBlockSize = 0 THEN EXIT DO
+                
+                ' Skip sub-block data
+                DIM skipPos AS INTEGER
+                FOR skipPos = 1 TO subBlockSize
+                    GET #fileNum, , skipByte
+                NEXT
+            LOOP
+            
+        ELSEIF nextByte = %GIF_SEP_IMAGE THEN
+            ' Found image descriptor
+            img.Separator = nextByte
+            GET #fileNum, , img.LeftPos
+            GET #fileNum, , img.TopPos
+            GET #fileNum, , img.ImageWidth
+            GET #fileNum, , img.ImageHeight
+            GET #fileNum, , img.Packed
+            foundImage = 1
+            
+        ELSEIF nextByte = %GIF_TRAILER THEN
+            ' End of file
+            errorMessage = "No image data found"
+            CLOSE #fileNum : EXIT SUB
+        END IF
+    LOOP
+    
+    IF img.Separator <> %GIF_SEP_IMAGE THEN
+        errorMessage = "Invalid GIF image descriptor"
+        CLOSE #fileNum : EXIT SUB
+    END IF
+    
+    ' Use image dimensions instead of screen dimensions
+    imgW = img.ImageWidth
+    imgH = img.ImageHeight
+
+    ' --- Proper LZW Decompression ---
+    DIM minCodeSize AS BYTE
+    GET #fileNum, , minCodeSize
+    
+    ' Read all sub-blocks into buffer
+    DIM inputBuffer(0 TO 8191) AS BYTE
+    DIM inputSize AS LONG : inputSize = 0
+    
+    DIM blockSize AS BYTE
+    DO
+        GET #fileNum, , blockSize
+        IF blockSize = 0 THEN EXIT DO
+        
+        DIM j AS INTEGER
+        FOR j = 1 TO blockSize
+            GET #fileNum, , inputBuffer(inputSize)
+            inputSize = inputSize + 1
+        NEXT
+    LOOP
+    
+    ' LZW decompression setup
+    DIM codeSize AS INTEGER : codeSize = minCodeSize + 1
+    DIM clearCode AS INTEGER : clearCode = 2 ^ minCodeSize
+    DIM eoiCode AS INTEGER : eoiCode = clearCode + 1
+    DIM nextCode AS INTEGER : nextCode = eoiCode + 1
+    DIM maxCode AS INTEGER : maxCode = (2 ^ codeSize) - 1
+    
+    ' Decompression dictionary (sequences stored as linked lists)
+    DIM dict(0 TO 4095) AS LZWEntry
+    DIM dictSize AS INTEGER
+    
+    ' Initialize dictionary
+    FOR i = 0 TO clearCode - 1
+        dict(i).prefix = -1
+        dict(i).suffix = i
+        dict(i).nextEntry = -1
+    NEXT
+    dictSize = nextCode
+    
+    ' Bit stream reader
+    DIM bitAccum AS LONG : bitAccum = 0
+    DIM bitsAvail AS INTEGER : bitsAvail = 0
+    DIM byteIndex AS LONG : byteIndex = 0
+    
+    ' Output tracking
+    DIM pixelCount AS LONG : pixelCount = 0
+    DIM totalPixels AS LONG : totalPixels = CLNG(imgW) * CLNG(imgH)
+    DIM x AS INTEGER, y AS INTEGER
+    
+    ' Decode sequences
+    DIM oldCode AS INTEGER : oldCode = -1
+    DIM code AS INTEGER
+    DIM sequence(0 TO 255) AS BYTE
+    DIM seqLen AS INTEGER
+    
+    ' Main decompression loop
+    DO WHILE byteIndex <= inputSize AND pixelCount < totalPixels
+        ' Read next code from bit stream
+        DO WHILE bitsAvail < codeSize AND byteIndex < inputSize
+            bitAccum = bitAccum OR (CLNG(inputBuffer(byteIndex)) * (2& ^ bitsAvail))
+            bitsAvail = bitsAvail + 8
+            byteIndex = byteIndex + 1
+        LOOP
+        
+        IF bitsAvail < codeSize THEN EXIT DO
+        
+        code = bitAccum AND ((2& ^ codeSize) - 1)
+        bitAccum = bitAccum \ (2& ^ codeSize)
+        bitsAvail = bitsAvail - codeSize
+        
+        ' Process the code - simplified for uncompressed mode
+        IF code = clearCode THEN
+            ' Just skip CLEAR code in uncompressed mode
+            oldCode = -1
+            
+        ELSEIF code = eoiCode THEN
+            EXIT DO
+            
+        ELSE
+            ' Regular code - handle both compressed and uncompressed
+            IF code <= 15 THEN
+                ' Direct pixel value (uncompressed mode)
+                IF pixelCount < totalPixels THEN
+                    x = pixelCount MOD imgW
+                    y = pixelCount \ imgW
+                    currentCanvas(x, y) = code
+                    pixelCount = pixelCount + 1
+                END IF
+            END IF
+            oldCode = code
+            
+        END IF
+    LOOP
+
+    CLOSE #fileNum
+    
+    ' Set bounding box
+    currentSprite.boundingBoxX1 = 0
+    currentSprite.boundingBoxY1 = 0
+    currentSprite.boundingBoxX2 = imgW - 1
+    currentSprite.boundingBoxY2 = imgH - 1
+END SUB
