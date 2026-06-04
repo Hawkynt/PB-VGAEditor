@@ -1,8 +1,16 @@
 # 🎨 PB-VGAEditor
 
-![License](https://img.shields.io/github/license/Hawkynt/PB-VGAEditor)
-[![PowerBASIC](https://img.shields.io/badge/powerbasic%203.5-100%25-purple.svg)](https://en.wikipedia.org/wiki/PowerBASIC)
-[![Last Commit](https://img.shields.io/github/last-commit/Hawkynt/PB-VGAEditor?branch=main)![Activity](https://img.shields.io/github/commit-activity/y/Hawkynt/PB-VGAEditor?branch=main)](https://github.com/Hawkynt/PB-VGAEditor/commits/main)
+[![License](https://img.shields.io/github/license/Hawkynt/PB-VGAEditor)](https://github.com/Hawkynt/PB-VGAEditor/blob/main/LICENSE)
+[![Language](https://img.shields.io/github/languages/top/Hawkynt/PB-VGAEditor?color=8957D5)](https://github.com/Hawkynt/PB-VGAEditor)
+
+![Last Commit](https://img.shields.io/github/last-commit/Hawkynt/PB-VGAEditor?branch=main)
+![Activity](https://img.shields.io/github/commit-activity/m/Hawkynt/PB-VGAEditor)
+
+[![Stars](https://img.shields.io/github/stars/Hawkynt/PB-VGAEditor?color=FFD700)](https://github.com/Hawkynt/PB-VGAEditor/stargazers)
+[![Forks](https://img.shields.io/github/forks/Hawkynt/PB-VGAEditor?color=008080)](https://github.com/Hawkynt/PB-VGAEditor/network/members)
+[![Issues](https://img.shields.io/github/issues/Hawkynt/PB-VGAEditor)](https://github.com/Hawkynt/PB-VGAEditor/issues)
+![Code Size](https://img.shields.io/github/languages/code-size/Hawkynt/PB-VGAEditor?color=4CAF50)
+![Repo Size](https://img.shields.io/github/repo-size/Hawkynt/PB-VGAEditor?color=FF9800)
 
 > A mouse-driven sprite editor for DOS, created for the [PB-Svga Library](https://github.com/Hawkynt/PB-SvgaLibrary).
 
