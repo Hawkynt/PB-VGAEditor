@@ -1,8 +1,9 @@
-# 🎨 PB-VGAEditor
+# PB-VGAEditor
 
 [![License](https://img.shields.io/github/license/Hawkynt/PB-VGAEditor)](https://github.com/Hawkynt/PB-VGAEditor/blob/main/LICENSE)
 [![Language](https://img.shields.io/github/languages/top/Hawkynt/PB-VGAEditor?color=8957D5)](https://github.com/Hawkynt/PB-VGAEditor)
 
+[![CI](https://github.com/Hawkynt/PB-VGAEditor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Hawkynt/PB-VGAEditor/actions/workflows/ci.yml)
 ![Last Commit](https://img.shields.io/github/last-commit/Hawkynt/PB-VGAEditor?branch=main)
 ![Activity](https://img.shields.io/github/commit-activity/m/Hawkynt/PB-VGAEditor)
 
@@ -14,7 +15,7 @@
 
 > A mouse-driven sprite editor for DOS, created for the [PB-Svga Library](https://github.com/Hawkynt/PB-SvgaLibrary).
 
-## 🚀 Features
+## ✨ Features
 
 *   **Drawing:** Draw pixel by pixel using the mouse. 🖌️
 *   **Color Palette:** Select from a 16-color palette. 🎨
@@ -48,7 +49,7 @@ These are standard formats for broader compatibility. When saving in these forma
 *   **`.TGA` (Targa):** A high-quality image format commonly used in graphics applications, supporting various bit depths and alpha channels.
 *   **`.TIF` (Tagged Image File Format):** A flexible image format widely used for high-quality images, supporting various compression methods and color depths.
 
-## 💻 How to Use
+## 🚀 Usage
 
 1.  You need a DOS environment with a VGA-compatible graphics card.
 2.  Run the `VGAMAUS.BAS` file with a PowerBASIC compiler (like PowerBASIC 3.5).
@@ -71,6 +72,23 @@ These are standard formats for broader compatibility. When saving in these forma
 
 ![Screenshot](screenshot.png)
 
+## 🛠️ Building
+
+Compile `VGAMAUS.BAS` with **PowerBASIC 3.5 for DOS** (runs fine under [DOSBox](https://www.dosbox.com/)); the editor pulls its modules in via `$INCLUDE`. The file-format round-trip test (`FileFormatRoundtrip.tst`) also runs under DOS and writes its results to `UNITTEST.LOG`. CI verifies every source structurally (balanced `SUB`/`FUNCTION`/`IF`/`FOR`/`DO`/`SELECT` blocks):
+
+```bash
+node .github/workflows/scripts/check-basic.mjs .
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a new file format.
+
+## ❤️ Support
+
+If this project saves you time or money, consider supporting its development:
+
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/Hawkynt)
+[![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C?logo=paypal)](https://www.paypal.me/hawkynt)
+
 ## 📜 License
 
-This project is licensed under the LGPL 3.0 License. See the [LICENSE](LICENSE) file for details.
+Licensed under LGPL-3.0-or-later — see [LICENSE](LICENSE).
