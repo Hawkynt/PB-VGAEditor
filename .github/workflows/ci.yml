@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call: {}
+
+# The real PowerBASIC 3.5 compiler is DOS-only and proprietary, so CI cannot
+# compile (the round-trip test FileFormatRoundtrip.tst also needs DOS). The
+# minimum-viable check instead verifies every source structurally: balanced
+# SUB/FUNCTION/TYPE/SELECT/DO/FOR/WHILE/block-IF constructs.
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Structural syntax check (all BASIC sources)
+        run: node .github/workflows/scripts/check-basic.mjs .
