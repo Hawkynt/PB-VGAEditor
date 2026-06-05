@@ -11,6 +11,11 @@ on:
 # compile (the round-trip test FileFormatRoundtrip.tst also needs DOS). The
 # minimum-viable check instead verifies every source structurally: balanced
 # SUB/FUNCTION/TYPE/SELECT/DO/FOR/WHILE/block-IF constructs.
+# Force JavaScript-based actions to run on Node 24 instead of the deprecated
+# Node 20 ahead of the 2026-06-16 hard cutover.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   check:
     runs-on: ubuntu-latest
