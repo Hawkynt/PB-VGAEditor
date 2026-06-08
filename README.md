@@ -52,9 +52,9 @@ These are standard formats for broader compatibility. When saving in these forma
 ## 🚀 Usage
 
 1.  You need a DOS environment with a VGA-compatible graphics card.
-2.  Run the `VGAMAUS.BAS` file with a PowerBASIC compiler (like PowerBASIC 3.5).
-3.  The editor will start, and you can use the mouse to draw on the canvas.
-4.  Follow the on-screen instructions (in German) to use the different features.
+2.  Grab the ready-to-run `VGAMAUS.EXE` from the [latest release](../../releases/latest) (built from source with PowerBASIC 3.5), or compile `VGAMAUS.BAS` yourself (see [Building](#️-building)).
+3.  Run `VGAMAUS.EXE` (in DOSBox or on real DOS) - no install step required.
+4.  The editor starts; use the mouse to draw on the canvas and follow the on-screen instructions (in German).
 
 ### Controls
 

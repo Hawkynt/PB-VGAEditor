@@ -1,0 +1,109 @@
+name: Release
+
+# Stable release — MANUAL dispatch only. Compiles VGAMAUS.BAS with the real
+# PowerBASIC 3.5 compiler under DOSBox and publishes the ready-to-run DOS
+# executable (VGAMAUS.EXE) as a GitHub release asset.
+#
+# Unlike CI's advisory 'compile' job, this build is REQUIRED: if the toolchain
+# secret is missing or the compile produces no .EXE, the release fails.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0). Defaults to 0.1.<run-number>.'
+        required: false
+      reason:
+        description: 'Why are you cutting this release? (optional, for the audit log)'
+        required: false
+
+permissions:
+  contents: write
+
+# Force JavaScript-based actions to run on Node 24 instead of the deprecated Node 20 ahead of
+# the 2026-06-16 hard cutover, until we bump each action to a Node-24-native major version.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  # Required structural gate before we spend time on the real build.
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: ver
+        run: |
+          V="${{ github.event.inputs.version }}"
+          [ -n "$V" ] || V="0.1.${{ github.run_number }}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$V"
+
+      - name: Obtain PowerBASIC toolchain (REQUIRED for a release)
+        env:
+          PB_TOOLCHAIN_KEY: ${{ secrets.PB_TOOLCHAIN_KEY }}
+        run: |
+          mkdir -p pb
+          if [ -f tools/pb-toolchain.tar.gz ]; then
+            tar xzf tools/pb-toolchain.tar.gz -C pb
+          elif [ -f tools/pb-toolchain.tar.enc ] && [ -n "$PB_TOOLCHAIN_KEY" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -in tools/pb-toolchain.tar.enc -pass env:PB_TOOLCHAIN_KEY | tar xz -C pb
+          else
+            echo "::error::PowerBASIC toolchain unavailable - provide tools/pb-toolchain.tar.gz, or tools/pb-toolchain.tar.enc + the PB_TOOLCHAIN_KEY secret."
+            exit 1
+          fi
+
+      - name: Install DOSBox
+        run: sudo apt-get update && sudo apt-get install -y dosbox
+
+      - name: Compile VGAMAUS.EXE under DOSBox
+        run: |
+          mkdir -p build
+          cp *.SUB *.BAS build/ 2>/dev/null || true
+          cp pb/* build/
+          {
+            echo "[sdl]"
+            echo "output=surface"
+            echo "[autoexec]"
+            echo "mount c \"$(pwd)/build\""
+            echo "c:"
+            echo "echo --- VGAMAUS.BAS --- >> PBCOUT.TXT"
+            echo "PBC.EXE -FNPX -G386 -ODV -OZF+ -CE -ES -EB -LB -LG VGAMAUS.BAS >> PBCOUT.TXT"
+            echo "EXIT"
+          } > dosbox.conf
+          echo "=== dosbox.conf ==="; cat dosbox.conf
+          SDL_VIDEODRIVER=dummy timeout 300 dosbox -conf dosbox.conf -exit >/dev/null 2>&1 || true
+          echo "=== PBC output ==="; find build -iname pbcout.txt -exec cat {} + 2>/dev/null || echo "(none)"
+          # DOSBox writes the 8.3 name uppercase on a case-sensitive runner.
+          exe=$(find build -iname 'VGAMAUS.EXE' | head -1)
+          if [ -z "$exe" ]; then
+            echo "::error::VGAMAUS.EXE was not produced - see PBC output above."; exit 1
+          fi
+          cp "$exe" VGAMAUS.EXE
+          ls -l VGAMAUS.EXE
+
+      - name: Compose release notes
+        env:
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          cat > RELEASE_NOTES.md <<EOF
+          ## PB-VGAEditor v$V
+
+          Ready-to-run **DOS executable** \`VGAMAUS.EXE\`, compiled from source with
+          PowerBASIC 3.5. Run it directly in DOSBox or on real DOS hardware - no
+          install step required.
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: v${{ steps.ver.outputs.version }}
+          files: VGAMAUS.EXE
+          body_path: RELEASE_NOTES.md
