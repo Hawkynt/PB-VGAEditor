@@ -36,8 +36,9 @@ jobs:
   compile:
     name: compile (advisory)
     needs: check
-    continue-on-error: true
     uses: ./.github/workflows/_build.yml
+    with:
+      advisory: true
     secrets: inherit
 
   # Advisory: run the PowerBASIC unit tests (tests/*.bas) under DOSBox and fail
