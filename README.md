@@ -1,7 +1,7 @@
 # PB-VGAEditor
 
 [![License](https://img.shields.io/github/license/Hawkynt/PB-VGAEditor)](https://github.com/Hawkynt/PB-VGAEditor/blob/main/LICENSE)
-[![Language](https://img.shields.io/github/languages/top/Hawkynt/PB-VGAEditor?color=8957D5)](https://github.com/Hawkynt/PB-VGAEditor)
+[![Language](https://img.shields.io/badge/language-PowerBASIC%2FDOS-8957D5)](https://github.com/Hawkynt/PB-VGAEditor)
 
 [![CI](https://github.com/Hawkynt/PB-VGAEditor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Hawkynt/PB-VGAEditor/actions/workflows/ci.yml)
 ![Last Commit](https://img.shields.io/github/last-commit/Hawkynt/PB-VGAEditor?branch=main)
