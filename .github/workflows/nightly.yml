@@ -30,10 +30,12 @@ jobs:
     uses: ./.github/workflows/_build.yml
     with:
       version: nightly
+      advisory: true
     secrets: inherit
 
   publish:
     needs: build
+    if: ${{ needs.build.outputs.built == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
