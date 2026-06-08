@@ -74,7 +74,7 @@ These are standard formats for broader compatibility. When saving in these forma
 
 ## 🛠️ Building
 
-Compile `VGAMAUS.BAS` with **PowerBASIC 3.5 for DOS** (runs fine under [DOSBox](https://www.dosbox.com/)); the editor pulls its modules in via `$INCLUDE`. The file-format round-trip test (`FileFormatRoundtrip.tst`) also runs under DOS and writes its results to `UNITTEST.LOG`. CI verifies every source structurally (balanced `SUB`/`FUNCTION`/`IF`/`FOR`/`DO`/`SELECT` blocks):
+Compile `VGAMAUS.BAS` with **PowerBASIC 3.5 for DOS** (runs fine under [DOSBox](https://www.dosbox.com/)); the editor pulls its modules in via `$INCLUDE`. The file-format round-trip test (`tests/FileFormatRoundtrip.bas`) also runs under DOS and writes its results to `UNITTEST.LOG`. CI verifies every source structurally (balanced `SUB`/`FUNCTION`/`IF`/`FOR`/`DO`/`SELECT` blocks):
 
 ```bash
 node .github/workflows/scripts/check-basic.mjs .

@@ -111,3 +111,17 @@ jobs:
             build/*.EXE
             build/*.exe
           if-no-files-found: ignore
+
+  # Advisory: run the PowerBASIC unit tests (tests/*.bas) under DOSBox and fail
+  # if any logs FAILED. Self-skips without the toolchain, so never blocks a merge.
+  test:
+    name: PowerBASIC unit tests
+    needs: check
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run PB unit tests under DOSBox
+        env:
+          PB_TOOLCHAIN_KEY: ${{ secrets.PB_TOOLCHAIN_KEY }}
+        run: bash scripts/run-pb-tests.sh
