@@ -1,11 +1,8 @@
 name: Release
 
-# Stable release — MANUAL dispatch only. Compiles VGAMAUS.BAS with the real
-# PowerBASIC 3.5 compiler under DOSBox and publishes the ready-to-run DOS
-# executable (VGAMAUS.EXE) as a GitHub release asset.
-#
-# Unlike CI's advisory 'compile' job, this build is REQUIRED: if the toolchain
-# secret is missing or the compile produces no .EXE, the release fails.
+# Stable release - MANUAL dispatch only. Builds VGAMAUS.EXE via the reusable
+# _build.yml (where the toolchain is REQUIRED) and publishes the ready-to-run
+# DOS executable as a GitHub release asset.
 on:
   workflow_dispatch:
     inputs:
@@ -29,68 +26,37 @@ jobs:
   check:
     uses: ./.github/workflows/ci.yml
 
-  release:
+  version:
     needs: check
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Resolve version
-        id: ver
+      - id: v
         run: |
           V="${{ github.event.inputs.version }}"
           [ -n "$V" ] || V="0.1.${{ github.run_number }}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Releasing v$V"
 
-      - name: Obtain PowerBASIC toolchain (REQUIRED for a release)
-        env:
-          PB_TOOLCHAIN_KEY: ${{ secrets.PB_TOOLCHAIN_KEY }}
-        run: |
-          mkdir -p pb
-          if [ -f tools/pb-toolchain.tar.gz ]; then
-            tar xzf tools/pb-toolchain.tar.gz -C pb
-          elif [ -f tools/pb-toolchain.tar.enc ] && [ -n "$PB_TOOLCHAIN_KEY" ]; then
-            openssl enc -d -aes-256-cbc -pbkdf2 -in tools/pb-toolchain.tar.enc -pass env:PB_TOOLCHAIN_KEY | tar xz -C pb
-          else
-            echo "::error::PowerBASIC toolchain unavailable - provide tools/pb-toolchain.tar.gz, or tools/pb-toolchain.tar.enc + the PB_TOOLCHAIN_KEY secret."
-            exit 1
-          fi
+  build:
+    needs: version
+    uses: ./.github/workflows/_build.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    secrets: inherit
 
-      - name: Install DOSBox
-        run: sudo apt-get update && sudo apt-get install -y dosbox
-
-      - name: Compile VGAMAUS.EXE under DOSBox
-        run: |
-          mkdir -p build
-          cp *.SUB *.BAS build/ 2>/dev/null || true
-          cp pb/* build/
-          {
-            echo "[sdl]"
-            echo "output=surface"
-            echo "[autoexec]"
-            echo "mount c \"$(pwd)/build\""
-            echo "c:"
-            echo "echo --- VGAMAUS.BAS --- >> PBCOUT.TXT"
-            echo "PBC.EXE -FNPX -G386 -ODV -OZF+ -CE -ES -EB -LB -LG VGAMAUS.BAS >> PBCOUT.TXT"
-            echo "EXIT"
-          } > dosbox.conf
-          echo "=== dosbox.conf ==="; cat dosbox.conf
-          SDL_VIDEODRIVER=dummy timeout 300 dosbox -conf dosbox.conf -exit >/dev/null 2>&1 || true
-          echo "=== PBC output ==="; find build -iname pbcout.txt -exec cat {} + 2>/dev/null || echo "(none)"
-          # DOSBox writes the 8.3 name uppercase on a case-sensitive runner.
-          exe=$(find build -iname 'VGAMAUS.EXE' | head -1)
-          if [ -z "$exe" ]; then
-            echo "::error::VGAMAUS.EXE was not produced - see PBC output above."; exit 1
-          fi
-          cp "$exe" VGAMAUS.EXE
-          ls -l VGAMAUS.EXE
-
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: dist
       - name: Compose release notes
         env:
-          V: ${{ steps.ver.outputs.version }}
+          V: ${{ needs.version.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<EOF
           ## PB-VGAEditor v$V
@@ -99,11 +65,10 @@ jobs:
           PowerBASIC 3.5. Run it directly in DOSBox or on real DOS hardware - no
           install step required.
           EOF
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          name: v${{ steps.ver.outputs.version }}
-          files: VGAMAUS.EXE
+          tag_name: v${{ needs.version.outputs.version }}
+          name: v${{ needs.version.outputs.version }}
+          files: dist/VGAMAUS.EXE
           body_path: RELEASE_NOTES.md

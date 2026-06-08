@@ -8,10 +8,11 @@ on:
   workflow_call: {}
 
 # The required gate is a structural syntax check (balanced
-# SUB/FUNCTION/TYPE/SELECT/DO/FOR/WHILE/block-IF) — the PowerBASIC 3.5 compiler
-# is DOS-only and proprietary, so it can't run on a stock hosted runner. An
-# ADVISORY 'compile' job below does the real build under DOSBox once the
-# encrypted toolchain is provided (see its comment); it never blocks a merge.
+# SUB/FUNCTION/TYPE/SELECT/DO/FOR/WHILE/block-IF) - the PowerBASIC 3.5 compiler
+# is DOS-only and proprietary, so it can't run on a stock hosted runner. The
+# ADVISORY 'compile' (reusable _build.yml) and 'test' jobs do the real build /
+# unit tests under DOSBox once the encrypted toolchain is provided; they never
+# block a merge.
 # Force JavaScript-based actions to run on Node 24 instead of the deprecated
 # Node 20 ahead of the 2026-06-16 hard cutover.
 env:
@@ -28,89 +29,16 @@ jobs:
       - name: Structural syntax check (all BASIC sources)
         run: node .github/workflows/scripts/check-basic.mjs .
 
-  # Advisory: real compilation under DOSBox with the proprietary PowerBASIC 3.5
-  # compiler. Self-skips until the toolchain is provided, so it never blocks the
-  # merge (the structural check above is the required gate). To enable:
-  #   1. tar + AES-encrypt the compiler locally (PBC.EXE + any PB 3.5 runtime):
-  #        tar cz -C /path/to/pb . | openssl enc -aes-256-cbc -pbkdf2 -salt   #          -out tools/pb-toolchain.tar.enc -pass pass:'<YOUR-KEY>'
-  #      commit tools/pb-toolchain.tar.enc (the .enc is useless without the key).
-  #   2. add a repo secret  PB_TOOLCHAIN_KEY = <YOUR-KEY>.
+  # Advisory: real compilation under DOSBox via the reusable build workflow.
+  # Fails-soft without the toolchain, so it never blocks the merge (the
+  # structural check above is the required gate). To enable the real build,
+  # commit tools/pb-toolchain.tar.enc and add the PB_TOOLCHAIN_KEY secret.
   compile:
-    runs-on: ubuntu-latest
+    name: compile (advisory)
+    needs: check
     continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: Obtain PowerBASIC toolchain (skips if not provided)
-        id: tc
-        env:
-          PB_TOOLCHAIN_KEY: ${{ secrets.PB_TOOLCHAIN_KEY }}
-        run: |
-          mkdir -p pb
-          # Provide PBC.EXE + the PB 3.5 runtime, packed once from the winworldpc
-          # setup, either as:
-          #   * tools/pb-toolchain.tar.gz   - plain (PB 3.5 is freely-available
-          #                                   abandonware), or
-          #   * tools/pb-toolchain.tar.enc  - AES-encrypted, decrypted with the
-          #                                   PB_TOOLCHAIN_KEY secret.
-          if [ -f tools/pb-toolchain.tar.gz ]; then
-            tar xzf tools/pb-toolchain.tar.gz -C pb
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          elif [ -f tools/pb-toolchain.tar.enc ] && [ -n "$PB_TOOLCHAIN_KEY" ]; then
-            openssl enc -d -aes-256-cbc -pbkdf2 -in tools/pb-toolchain.tar.enc -pass env:PB_TOOLCHAIN_KEY | tar xz -C pb
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::PowerBASIC toolchain not provided (commit tools/pb-toolchain.tar.gz, or tools/pb-toolchain.tar.enc + PB_TOOLCHAIN_KEY secret) - skipping compile."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Install DOSBox
-        if: steps.tc.outputs.ready == 'true'
-        run: sudo apt-get update && sudo apt-get install -y dosbox
-      - name: Compile under DOSBox (PBC.EXE per source)
-        if: steps.tc.outputs.ready == 'true'
-        run: |
-          mkdir -p build
-          cp *.SUB *.BAS build/ 2>/dev/null || true
-          cp pb/* build/
-          {
-            echo "[sdl]"
-            echo "output=surface"
-            echo "[autoexec]"
-            echo "mount c \"$(pwd)/build\""
-            echo "c:"
-            for f in build/*.BAS build/*.bas; do
-              [ -e "$f" ] || continue
-              n=$(basename "$f")
-              echo "echo --- $n --- >> PBCOUT.TXT"
-              echo "PBC.EXE -FNPX -G386 -ODV -OZF+ -CE -ES -EB -LB -LG $n >> PBCOUT.TXT"
-            done
-            echo "EXIT"
-          } > dosbox.conf
-          echo "=== dosbox.conf ==="; cat dosbox.conf
-          SDL_VIDEODRIVER=dummy timeout 300 dosbox -conf dosbox.conf -exit >/dev/null 2>&1 || true
-          echo "=== PBC output ==="; find build -iname pbcout.txt -exec cat {} + 2>/dev/null || echo "(none)"
-          echo "=== build/ exes ==="; find build -iname "*.exe" | sort
-          toolchain=" PBC.EXE PB.EXE PBD.EXE PBLIB.EXE PBINST.EXE INLN2ASM.EXE "
-          produced=()
-          while IFS= read -r e; do
-            b=$(basename "$e" | tr 'a-z' 'A-Z')
-            case "$toolchain" in *" $b "*) ;; *) produced+=("$e");; esac
-          done < <(find build -iname '*.exe')
-          if [ ${#produced[@]} -eq 0 ]; then
-            echo "::error::no program .EXE produced - see PBC output above"; exit 1
-          fi
-          echo "Built:"; for x in "${produced[@]}"; do echo "  $x"; done
-
-      - name: Upload build log + artifacts
-        if: steps.tc.outputs.ready == 'true' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dosbox-build
-          path: |
-            build/*.log
-            build/*.LOG
-            build/*.EXE
-            build/*.exe
-          if-no-files-found: ignore
+    uses: ./.github/workflows/_build.yml
+    secrets: inherit
 
   # Advisory: run the PowerBASIC unit tests (tests/*.bas) under DOSBox and fail
   # if any logs FAILED. Self-skips without the toolchain, so never blocks a merge.

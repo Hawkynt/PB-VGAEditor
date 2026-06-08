@@ -1,9 +1,9 @@
 name: Nightly
 
 # Fires after CI passes on main (a red CI never produces a nightly, so the
-# "latest nightly" always points at tested code), plus manual dispatch.
-# Compiles VGAMAUS.EXE with PowerBASIC 3.5 under DOSBox and publishes it to a
-# single rolling pre-release tagged `nightly`.
+# "latest nightly" always points at tested code), plus manual dispatch. Builds
+# VGAMAUS.EXE via the reusable _build.yml and publishes it to a rolling nightly
+# pre-release.
 on:
   workflow_run:
     workflows: ["CI"]
@@ -24,62 +24,29 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  nightly:
-    # Only on a green CI run (or manual dispatch); skip if the toolchain secret is absent.
+  build:
+    # Only on a green CI run (or manual dispatch).
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    uses: ./.github/workflows/_build.yml
+    with:
+      version: nightly
+    secrets: inherit
+
+  publish:
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Obtain PowerBASIC toolchain (skip nightly if unavailable)
-        id: tc
-        env:
-          PB_TOOLCHAIN_KEY: ${{ secrets.PB_TOOLCHAIN_KEY }}
-        run: |
-          mkdir -p pb
-          if [ -f tools/pb-toolchain.tar.gz ]; then
-            tar xzf tools/pb-toolchain.tar.gz -C pb
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          elif [ -f tools/pb-toolchain.tar.enc ] && [ -n "$PB_TOOLCHAIN_KEY" ]; then
-            openssl enc -d -aes-256-cbc -pbkdf2 -in tools/pb-toolchain.tar.enc -pass env:PB_TOOLCHAIN_KEY | tar xz -C pb
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::PowerBASIC toolchain unavailable - skipping nightly build."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Install DOSBox
-        if: steps.tc.outputs.ready == 'true'
-        run: sudo apt-get update && sudo apt-get install -y dosbox
-
-      - name: Compile VGAMAUS.EXE under DOSBox
-        if: steps.tc.outputs.ready == 'true'
-        run: |
-          mkdir -p build
-          cp *.SUB *.BAS build/ 2>/dev/null || true
-          cp pb/* build/
-          {
-            echo "[sdl]"; echo "output=surface"
-            echo "[autoexec]"
-            echo "mount c \"$(pwd)/build\""
-            echo "c:"
-            echo "PBC.EXE -FNPX -G386 -ODV -OZF+ -CE -ES -EB -LB -LG VGAMAUS.BAS >> PBCOUT.TXT"
-            echo "EXIT"
-          } > dosbox.conf
-          SDL_VIDEODRIVER=dummy timeout 300 dosbox -conf dosbox.conf -exit >/dev/null 2>&1 || true
-          find build -iname pbcout.txt -exec cat {} + 2>/dev/null || true
-          exe=$(find build -iname 'VGAMAUS.EXE' | head -1)
-          if [ -z "$exe" ]; then echo "::error::VGAMAUS.EXE not produced."; exit 1; fi
-          cp "$exe" VGAMAUS.EXE; ls -l VGAMAUS.EXE
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: dist
       - name: Publish rolling nightly pre-release
-        if: steps.tc.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly
           name: Nightly (${{ github.sha }})
           prerelease: true
-          files: VGAMAUS.EXE
+          files: dist/VGAMAUS.EXE
           body: |
             Automated nightly build of `VGAMAUS.EXE`, compiled from source with PowerBASIC 3.5
             after CI passed on `main`. Commit ${{ github.sha }}.
