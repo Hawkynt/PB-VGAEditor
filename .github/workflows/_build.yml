@@ -1,0 +1,99 @@
+name: Build artifacts
+
+# Reusable build: compiles VGAMAUS.EXE with the real PowerBASIC 3.5 compiler
+# under DOSBox and uploads it as an artifact. Called by ci.yml (advisory),
+# nightly.yml and release.yml so the build recipe lives in exactly one place.
+#
+# advisory=true  -> a missing toolchain or a failed compile leaves the job GREEN
+#                   and simply produces no artifact (used by CI; the structural
+#                   check is the required gate).
+# advisory=false -> a missing toolchain or a failed compile FAILS the job (used
+#                   by nightly/release so a broken build never ships).
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+        default: 'dev'
+      advisory:
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      artifact-name:
+        description: "Name of the uploaded artifact containing VGAMAUS.EXE"
+        value: ${{ jobs.build.outputs.artifact-name }}
+      built:
+        description: "true if VGAMAUS.EXE was built and uploaded"
+        value: ${{ jobs.build.outputs.built }}
+
+# Force JavaScript-based actions to run on Node 24 instead of the deprecated Node 20 ahead of
+# the 2026-06-16 hard cutover, until we bump each action to a Node-24-native major version.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: VGAMAUS-${{ inputs.version }}
+      built: ${{ steps.compile.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain PowerBASIC toolchain
+        id: tc
+        continue-on-error: true
+        env:
+          PB_TOOLCHAIN_KEY: ${{ secrets.PB_TOOLCHAIN_KEY }}
+        run: |
+          mkdir -p pb
+          if [ -f tools/pb-toolchain.tar.gz ]; then
+            tar xzf tools/pb-toolchain.tar.gz -C pb
+          elif [ -f tools/pb-toolchain.tar.enc ] && [ -n "$PB_TOOLCHAIN_KEY" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -in tools/pb-toolchain.tar.enc -pass env:PB_TOOLCHAIN_KEY | tar xz -C pb
+          else
+            echo "::notice::PowerBASIC toolchain unavailable."; exit 1
+          fi
+
+      - name: Require toolchain (non-advisory builds)
+        if: ${{ inputs.advisory != true && steps.tc.outcome == 'failure' }}
+        run: echo "::error::PowerBASIC toolchain required - commit tools/pb-toolchain.tar.enc and set PB_TOOLCHAIN_KEY."; exit 1
+
+      - name: Install DOSBox
+        if: steps.tc.outcome == 'success'
+        run: sudo apt-get update && sudo apt-get install -y dosbox
+
+      - name: Compile VGAMAUS.EXE under DOSBox
+        id: compile
+        if: steps.tc.outcome == 'success'
+        continue-on-error: true
+        run: |
+          mkdir -p build
+          cp *.SUB *.BAS build/ 2>/dev/null || true
+          cp pb/* build/
+          {
+            echo "[sdl]"; echo "output=surface"
+            echo "[autoexec]"
+            echo "mount c \"$(pwd)/build\""
+            echo "c:"
+            echo "PBC.EXE -FNPX -G386 -ODV -OZF+ -CE -ES -EB -LB -LG VGAMAUS.BAS >> PBCOUT.TXT"
+            echo "EXIT"
+          } > dosbox.conf
+          SDL_VIDEODRIVER=dummy timeout 300 dosbox -conf dosbox.conf -exit >/dev/null 2>&1 || true
+          find build -iname pbcout.txt -exec cat {} + 2>/dev/null || true
+          exe=$(find build -iname 'VGAMAUS.EXE' | head -1)
+          if [ -z "$exe" ]; then echo "::error::VGAMAUS.EXE was not produced - see PBC output above."; exit 1; fi
+          cp "$exe" VGAMAUS.EXE; ls -l VGAMAUS.EXE
+
+      - name: Require successful compile (non-advisory builds)
+        if: ${{ inputs.advisory != true && steps.tc.outcome == 'success' && steps.compile.outcome == 'failure' }}
+        run: echo "::error::VGAMAUS.EXE failed to compile."; exit 1
+
+      - uses: actions/upload-artifact@v4
+        if: steps.compile.outcome == 'success'
+        with:
+          name: VGAMAUS-${{ inputs.version }}
+          path: VGAMAUS.EXE
+          if-no-files-found: error

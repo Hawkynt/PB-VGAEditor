@@ -1,7 +1,7 @@
 # PB-VGAEditor
 
 [![License](https://img.shields.io/github/license/Hawkynt/PB-VGAEditor)](https://github.com/Hawkynt/PB-VGAEditor/blob/main/LICENSE)
-[![Language](https://img.shields.io/github/languages/top/Hawkynt/PB-VGAEditor?color=8957D5)](https://github.com/Hawkynt/PB-VGAEditor)
+[![Language](https://img.shields.io/badge/language-PowerBASIC%2FDOS-8957D5)](https://github.com/Hawkynt/PB-VGAEditor)
 
 [![CI](https://github.com/Hawkynt/PB-VGAEditor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Hawkynt/PB-VGAEditor/actions/workflows/ci.yml)
 ![Last Commit](https://img.shields.io/github/last-commit/Hawkynt/PB-VGAEditor?branch=main)
@@ -12,6 +12,10 @@
 [![Issues](https://img.shields.io/github/issues/Hawkynt/PB-VGAEditor)](https://github.com/Hawkynt/PB-VGAEditor/issues)
 ![Code Size](https://img.shields.io/github/languages/code-size/Hawkynt/PB-VGAEditor?color=4CAF50)
 ![Repo Size](https://img.shields.io/github/repo-size/Hawkynt/PB-VGAEditor?color=FF9800)
+
+[![Release](https://img.shields.io/github/v/release/Hawkynt/PB-VGAEditor)](https://github.com/Hawkynt/PB-VGAEditor/releases/latest)
+[![Nightly](https://img.shields.io/github/v/release/Hawkynt/PB-VGAEditor?include_prereleases&sort=date&filter=nightly*&label=nightly&color=FF9800)](https://github.com/Hawkynt/PB-VGAEditor/releases)
+[![Downloads](https://img.shields.io/github/downloads/Hawkynt/PB-VGAEditor/total)](https://github.com/Hawkynt/PB-VGAEditor/releases)
 
 > A mouse-driven sprite editor for DOS, created for the [PB-Svga Library](https://github.com/Hawkynt/PB-SvgaLibrary).
 
@@ -52,9 +56,9 @@ These are standard formats for broader compatibility. When saving in these forma
 ## 🚀 Usage
 
 1.  You need a DOS environment with a VGA-compatible graphics card.
-2.  Run the `VGAMAUS.BAS` file with a PowerBASIC compiler (like PowerBASIC 3.5).
-3.  The editor will start, and you can use the mouse to draw on the canvas.
-4.  Follow the on-screen instructions (in German) to use the different features.
+2.  Grab the ready-to-run `VGAMAUS.EXE` from the [latest release](../../releases/latest) (built from source with PowerBASIC 3.5), or compile `VGAMAUS.BAS` yourself (see [Building](#️-building)).
+3.  Run `VGAMAUS.EXE` (in DOSBox or on real DOS) - no install step required.
+4.  The editor starts; use the mouse to draw on the canvas and follow the on-screen instructions (in German).
 
 ### Controls
 
@@ -74,7 +78,7 @@ These are standard formats for broader compatibility. When saving in these forma
 
 ## 🛠️ Building
 
-Compile `VGAMAUS.BAS` with **PowerBASIC 3.5 for DOS** (runs fine under [DOSBox](https://www.dosbox.com/)); the editor pulls its modules in via `$INCLUDE`. The file-format round-trip test (`FileFormatRoundtrip.tst`) also runs under DOS and writes its results to `UNITTEST.LOG`. CI verifies every source structurally (balanced `SUB`/`FUNCTION`/`IF`/`FOR`/`DO`/`SELECT` blocks):
+Compile `VGAMAUS.BAS` with **PowerBASIC 3.5 for DOS** (runs fine under [DOSBox](https://www.dosbox.com/)); the editor pulls its modules in via `$INCLUDE`. The file-format round-trip test (`tests/FileFormatRoundtrip.bas`) also runs under DOS and writes its results to `UNITTEST.LOG`. CI verifies every source structurally (balanced `SUB`/`FUNCTION`/`IF`/`FOR`/`DO`/`SELECT` blocks):
 
 ```bash
 node .github/workflows/scripts/check-basic.mjs .

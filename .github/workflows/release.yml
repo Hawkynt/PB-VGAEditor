@@ -1,0 +1,74 @@
+name: Release
+
+# Stable release - MANUAL dispatch only. Builds VGAMAUS.EXE via the reusable
+# _build.yml (where the toolchain is REQUIRED) and publishes the ready-to-run
+# DOS executable as a GitHub release asset.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0). Defaults to 0.1.<run-number>.'
+        required: false
+      reason:
+        description: 'Why are you cutting this release? (optional, for the audit log)'
+        required: false
+
+permissions:
+  contents: write
+
+# Force JavaScript-based actions to run on Node 24 instead of the deprecated Node 20 ahead of
+# the 2026-06-16 hard cutover, until we bump each action to a Node-24-native major version.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  # Required structural gate before we spend time on the real build.
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    needs: check
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          V="${{ github.event.inputs.version }}"
+          [ -n "$V" ] || V="0.1.${{ github.run_number }}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$V"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/_build.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    secrets: inherit
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: dist
+      - name: Compose release notes
+        env:
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          cat > RELEASE_NOTES.md <<EOF
+          ## PB-VGAEditor v$V
+
+          Ready-to-run **DOS executable** \`VGAMAUS.EXE\`, compiled from source with
+          PowerBASIC 3.5. Run it directly in DOSBox or on real DOS hardware - no
+          install step required.
+          EOF
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: v${{ needs.version.outputs.version }}
+          files: dist/VGAMAUS.EXE
+          body_path: RELEASE_NOTES.md
