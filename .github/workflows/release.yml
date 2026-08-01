@@ -32,12 +32,22 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                 # the build number is a commit count
+      # The base now comes from the repo's VERSION file rather than the run number, which reset the
+      # patch on every workflow re-run and made two builds of the same commit claim different
+      # versions. The shared versioner appends the commit count.
+      - id: auto
+        uses: Hawkynt/RepositoryTemplate/stamp-version@v1
+        with:
+          mode: print
       - id: v
         run: |
           V="${{ github.event.inputs.version }}"
-          [ -n "$V" ] || V="0.1.${{ github.run_number }}"
+          [ -n "$V" ] || V="${{ steps.auto.outputs.version }}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "Releasing v$V"
+          echo "Package version: $V"
 
   build:
     needs: version
@@ -54,6 +64,10 @@ jobs:
         with:
           name: ${{ needs.build.outputs.artifact-name }}
           path: dist
+      # The repo-level marker is the DATE, like every other Hawkynt repo; the executable's own
+      # MAJOR.MINOR.PATCH.BUILD stays the package version and is quoted alongside it.
+      - name: Compose release marker
+        run: echo "REL=v$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
       - name: Compose release notes
         env:
           V: ${{ needs.version.outputs.version }}
@@ -68,7 +82,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.version.outputs.version }}
-          name: v${{ needs.version.outputs.version }}
+          tag_name: ${{ env.REL }}
+          name: ${{ env.REL }} (v${{ needs.version.outputs.version }})
           files: dist/VGAMAUS.EXE
           body_path: RELEASE_NOTES.md

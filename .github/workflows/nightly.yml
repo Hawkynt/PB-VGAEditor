@@ -42,11 +42,21 @@ jobs:
         with:
           name: ${{ needs.build.outputs.artifact-name }}
           path: dist
-      - name: Publish rolling nightly pre-release
+      # Dated nightlies, like every other Hawkynt repo: a single rolling `nightly` tag silently
+      # moved under previously-downloaded assets and gave the GFS prune nothing to work with.
+      - name: Compute nightly tag
+        run: echo "TAG=nightly-$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
+      # Same-day re-run: drop the existing release AND its tag first, so the tag always points at
+      # the commit that was actually built.
+      - name: Replace same-day nightly (release + tag), if any
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete "$TAG" --cleanup-tag --yes || true
+      - name: Publish nightly pre-release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly
-          name: Nightly (${{ github.sha }})
+          tag_name: ${{ env.TAG }}
+          name: Nightly ${{ env.TAG }} (${{ github.sha }})
           prerelease: true
           files: dist/VGAMAUS.EXE
           body: |
