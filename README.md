@@ -19,6 +19,17 @@
 
 > A mouse-driven sprite editor for DOS, created for the [PB-Svga Library](https://github.com/Hawkynt/PB-SvgaLibrary).
 
+![The editor, mid-sprite](screenshot.png)
+
+## 🧭 Vision
+
+A sprite editor is the piece a graphics library needs before anyone can actually draw with it, and
+PB-Svga had none — so this is it: a mouse-driven editor that runs on the same DOS machines the
+library targets and writes the formats it reads.
+
+It exists to close the loop between the library and the artwork, which is why it stays a DOS program
+rather than a modern tool that exports downwards.
+
 ## ✨ Features
 
 *   **Drawing:** Draw pixel by pixel using the mouse. 🖌️
@@ -29,6 +40,31 @@
     *   Create a new sprite.
     *   Load and save sprites.
 *   **Line Mode:** A mode for drawing straight lines. 📏
+
+## 📦 Installation
+
+Download the editor from the [latest release](https://github.com/Hawkynt/PB-VGAEditor/releases/latest)
+(or a `nightly-*` prerelease) and run it on DOS, or in DOSBox on a modern machine. A mouse driver has
+to be loaded first — the editor is driven by the mouse.
+
+## 🚀 Quick start
+
+1.  You need a DOS environment with a VGA-compatible graphics card.
+2.  Grab the ready-to-run `VGAMAUS.EXE` from the [latest release](../../releases/latest) (built from source with PowerBASIC 3.5), or compile `VGAMAUS.BAS` yourself (see [Building](#️-building)).
+3.  Run `VGAMAUS.EXE` (in DOSBox or on real DOS) - no install step required.
+4.  The editor starts; use the mouse to draw on the canvas and follow the on-screen instructions (in German).
+
+### Controls
+
+*   **Mouse:** Move the cursor and draw pixels.
+*   **Left Mouse Button:** Draw with the selected color.
+*   **Right Mouse Button:** Erase pixels (draw with color 0).
+*   **`c` key:** Change the current color.
+*   **`s` key:** Save the sprite.
+*   **`l` key:** Load a sprite.
+*   **`n` key:** Create a new sprite.
+*   **`EINFG` (Insert) key:** Toggle line mode.
+*   **`ESC` key:** Exit the editor.
 
 ## 💾 File Formats
 
@@ -52,29 +88,6 @@ These are standard formats for broader compatibility. When saving in these forma
 *   **`.GIF` (Graphics Interchange Format):** The popular web image format with LZW compression and animation support. The editor exports 16-color static GIF images.
 *   **`.TGA` (Targa):** A high-quality image format commonly used in graphics applications, supporting various bit depths and alpha channels.
 *   **`.TIF` (Tagged Image File Format):** A flexible image format widely used for high-quality images, supporting various compression methods and color depths.
-
-## 🚀 Usage
-
-1.  You need a DOS environment with a VGA-compatible graphics card.
-2.  Grab the ready-to-run `VGAMAUS.EXE` from the [latest release](../../releases/latest) (built from source with PowerBASIC 3.5), or compile `VGAMAUS.BAS` yourself (see [Building](#️-building)).
-3.  Run `VGAMAUS.EXE` (in DOSBox or on real DOS) - no install step required.
-4.  The editor starts; use the mouse to draw on the canvas and follow the on-screen instructions (in German).
-
-### Controls
-
-*   **Mouse:** Move the cursor and draw pixels.
-*   **Left Mouse Button:** Draw with the selected color.
-*   **Right Mouse Button:** Erase pixels (draw with color 0).
-*   **`c` key:** Change the current color.
-*   **`s` key:** Save the sprite.
-*   **`l` key:** Load a sprite.
-*   **`n` key:** Create a new sprite.
-*   **`EINFG` (Insert) key:** Toggle line mode.
-*   **`ESC` key:** Exit the editor.
-
-## 🖼️ Screenshots
-
-![Screenshot](screenshot.png)
 
 ## 🛠️ Building
 
